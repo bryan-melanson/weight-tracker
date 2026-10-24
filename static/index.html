@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weight &amp; Calorie Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>&#9878;</text></svg>">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div>
+      <h1>Weight &amp; calorie tracker</h1>
+      <p class="topbar__sub" id="topbar-sub">Local data, stored on this machine only.</p>
+    </div>
+    <div class="topbar__actions">
+      <button type="button" id="theme-toggle" class="btn btn--ghost" aria-pressed="false">
+        <span id="theme-toggle-label">Dark mode</span>
+      </button>
+    </div>
+  </header>
+
+  <p id="status" class="status" role="status" aria-live="polite" hidden></p>
+
+  <section class="cards">
+    <form class="card" id="entry-form" novalidate>
+      <h2 class="card__title">Log a day</h2>
+      <div class="field-grid">
+        <p class="field">
+          <label for="entry-date">Date</label>
+          <input type="date" id="entry-date" name="date" required>
+        </p>
+        <p class="field">
+          <label for="entry-weight">Weight (<span class="unit-label">lb</span>)</label>
+          <input type="number" id="entry-weight" name="weight" step="0.1" min="0" inputmode="decimal">
+        </p>
+        <p class="field">
+          <label for="entry-calories">Calories eaten</label>
+          <input type="number" id="entry-calories" name="calories" step="10" min="0" inputmode="numeric">
+        </p>
+        <p class="field">
+          <label for="entry-burned">Calories burnt <span class="field__hint">exercise</span></label>
+          <input type="number" id="entry-burned" name="calories_burned" step="10" min="0" inputmode="numeric">
+        </p>
+        <p class="field">
+          <label for="entry-target">Target for this day</label>
+          <input type="number" id="entry-target" name="calorie_target" step="10" min="1" inputmode="numeric">
+        </p>
+      </div>
+      <p class="field">
+        <label for="entry-note">Note <span class="field__hint">optional</span></label>
+        <input type="text" id="entry-note" name="note" maxlength="500" placeholder="How the day went">
+      </p>
+      <div class="card__actions">
+        <button type="submit" class="btn btn--primary">Save day</button>
+        <button type="button" class="btn btn--ghost" id="entry-delete">Delete this day</button>
+      </div>
+    </form>
+
+    <form class="card" id="targets-form" novalidate>
+      <h2 class="card__title">Targets</h2>
+      <div class="field-grid">
+        <p class="field">
+          <label for="setting-unit">Weight unit</label>
+          <select id="setting-unit" name="unit">
+            <option value="lb">Pounds (lb)</option>
+            <option value="kg">Kilograms (kg)</option>
+          </select>
+        </p>
+        <p class="field">
+          <label for="setting-target">Default daily target</label>
+          <input type="number" id="setting-target" name="default_calorie_target" step="10" min="1" required inputmode="numeric">
+        </p>
+        <p class="field">
+          <label for="setting-goal-weight">Goal weight (<span class="unit-label">lb</span>)</label>
+          <input type="number" id="setting-goal-weight" name="goal_weight" step="0.1" min="0" inputmode="decimal">
+        </p>
+        <p class="field">
+          <label for="setting-goal-date">Target date <span class="field__hint">optional</span></label>
+          <input type="date" id="setting-goal-date" name="goal_date">
+        </p>
+      </div>
+      <fieldset class="weekdays">
+        <legend>Target by weekday <span class="field__hint">blank follows the default</span></legend>
+        <div class="weekdays__grid">
+          <p class="field">
+            <label for="setting-target-mon">Mon</label>
+            <input type="number" id="setting-target-mon" name="calorie_target_mon" step="10" min="1" inputmode="numeric">
+          </p>
+          <p class="field">
+            <label for="setting-target-tue">Tue</label>
+            <input type="number" id="setting-target-tue" name="calorie_target_tue" step="10" min="1" inputmode="numeric">
+          </p>
+          <p class="field">
+            <label for="setting-target-wed">Wed</label>
+            <input type="number" id="setting-target-wed" name="calorie_target_wed" step="10" min="1" inputmode="numeric">
+          </p>
+          <p class="field">
+            <label for="setting-target-thu">Thu</label>
+            <input type="number" id="setting-target-thu" name="calorie_target_thu" step="10" min="1" inputmode="numeric">
+          </p>
+          <p class="field">
+            <label for="setting-target-fri">Fri</label>
+            <input type="number" id="setting-target-fri" name="calorie_target_fri" step="10" min="1" inputmode="numeric">
+          </p>
+          <p class="field">
+            <label for="setting-target-sat">Sat</label>
+            <input type="number" id="setting-target-sat" name="calorie_target_sat" step="10" min="1" inputmode="numeric">
+          </p>
+          <p class="field">
+            <label for="setting-target-sun">Sun</label>
+            <input type="number" id="setting-target-sun" name="calorie_target_sun" step="10" min="1" inputmode="numeric">
+          </p>
+        </div>
+      </fieldset>
+      <div class="card__actions">
+        <button type="submit" class="btn btn--primary">Save targets</button>
+      </div>
+    </form>
+  </section>
+
+  <div class="filters" role="group" aria-label="Date range">
+    <span class="filters__label">Range</span>
+    <div class="segmented" id="range-filter"></div>
+    <span class="filters__spacer"></span>
+    <button type="button" class="btn btn--ghost" id="export-btn">Export CSV</button>
+    <button type="button" class="btn btn--ghost" id="import-btn">Import CSV</button>
+    <input type="file" id="import-input" accept=".csv,text/csv" hidden>
+  </div>
+
+  <section class="kpis" id="kpis" aria-label="Summary"></section>
+
+  <section class="charts">
+    <figure class="chart-card" id="chart-weight">
+      <figcaption>
+        <h2 class="chart-card__title">Weight</h2>
+        <p class="chart-card__sub"></p>
+      </figcaption>
+      <div class="chart-card__legend"></div>
+      <div class="chart-card__plot"></div>
+      <p class="chart-card__note"></p>
+    </figure>
+
+    <figure class="chart-card" id="chart-calories">
+      <figcaption>
+        <h2 class="chart-card__title">Calories against target</h2>
+        <p class="chart-card__sub"></p>
+      </figcaption>
+      <div class="chart-card__legend"></div>
+      <div class="chart-card__plot"></div>
+      <p class="chart-card__note"></p>
+    </figure>
+
+    <figure class="chart-card" id="chart-balance">
+      <figcaption>
+        <h2 class="chart-card__title">Running calorie balance</h2>
+        <p class="chart-card__sub">Sum of each day's intake, less exercise, minus that day's target. Below zero is a deficit.</p>
+      </figcaption>
+      <div class="chart-card__legend"></div>
+      <div class="chart-card__plot"></div>
+      <p class="chart-card__note"></p>
+    </figure>
+  </section>
+
+  <section class="table-card">
+    <h2 class="chart-card__title">Logged days</h2>
+    <p class="chart-card__sub">The same values the charts show. Select a row to load it into the form.</p>
+    <div class="table-scroll">
+      <table class="data-table" id="entries-table">
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col" class="num">Weight (<span class="unit-label">lb</span>)</th>
+            <th scope="col" class="num">Eaten</th>
+            <th scope="col" class="num">Burnt</th>
+            <th scope="col" class="num">Target</th>
+            <th scope="col" class="num">Difference</th>
+            <th scope="col">Note</th>
+            <th scope="col"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
