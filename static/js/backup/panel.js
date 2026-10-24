@@ -34,11 +34,34 @@ function statusLine(state, nowMs) {
   return { text: when ? `Backed up ${when} to ${state.repo}/${state.path}.` : `Backing up to ${state.repo}/${state.path}.`, kind: 'success' };
 }
 
+/* What the collapsed summary says, so the section does not have to be opened
+   to find out whether the data is safe. Empty while backups are switched off:
+   there is nothing to report about a feature nobody is using. */
+function summaryState(state) {
+  if (!state.configured) return { text: '', kind: 'info' };
+  if (state.foundDays > 0) return { text: 'needs a decision', kind: 'error' };
+  if (state.status === 'saving') return { text: 'backing up…', kind: 'info' };
+  if (state.status === 'error') return { text: 'not backed up', kind: 'error' };
+  if (state.pending) return { text: 'changes not backed up', kind: 'warn' };
+  return { text: 'up to date', kind: 'success' };
+}
+
+/* Collapsing a section must not hide a problem. The panel opens itself when
+   something needs the user: a backup found in the repository that it refuses
+   to overwrite on its own, or a push that failed. Once opened it is left
+   alone — closing it again is the user's call, not something a later status
+   change undoes. */
+function openWhenItMatters(details, state) {
+  if (state.foundDays > 0 || state.status === 'error') details.open = true;
+}
+
 export function mountBackupPanel({ service, onDataChanged, setStatus, now = () => Date.now() }) {
+  const details = $('#backup-card');
   const form = $('#backup-form');
   const actions = $('#backup-actions');
   const found = $('#backup-found');
   const statusNode = $('#backup-status');
+  const summaryNode = $('#backup-summary-state');
 
   function render(state) {
     form.hidden = state.configured;
@@ -57,7 +80,13 @@ export function mountBackupPanel({ service, onDataChanged, setStatus, now = () =
     statusNode.dataset.kind = line.kind;
     statusNode.hidden = !line.text;
 
+    const summary = summaryState(state);
+    summaryNode.textContent = summary.text;
+    summaryNode.dataset.kind = summary.kind;
+    summaryNode.hidden = !summary.text;
+
     $('#backup-now').disabled = state.status === 'saving';
+    openWhenItMatters(details, state);
   }
 
   function readForm() {

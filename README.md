@@ -11,9 +11,10 @@ It runs two ways, from one frontend:
 - **On an iPhone** as an app installed to the home screen, storing data in the
   browser's own database. No App Store, no Apple developer account, no Mac.
 
-Optionally it keeps a copy of your history in a private GitHub repository you
-own, so losing the phone does not lose the data. That is the only thing that
-ever talks to the network, and it is off until you switch it on.
+Optionally it can keep a copy of your history in a private GitHub repository
+you own, so losing the phone does not lose the data. That is the only thing
+that ever talks to the network, it is off until you switch it on, and the app
+is fully usable without it.
 
 ## Run it on the desktop
 
@@ -74,11 +75,23 @@ is not reclaimed under storage pressure either.
 What that still does not survive: deleting the app, losing or resetting the
 phone, or a bad restore. For those, back it up.
 
-### Backup to a private GitHub repository
+### Backup to a private GitHub repository (optional)
 
-The **Backup** card copies your whole history to one CSV file in a private
-repository, after every change. It is one-way — the device is the source of
-truth, and nothing comes back unless you ask for it.
+You do not need this. The app makes no network calls at all until you connect
+it, and the data on the phone is not going anywhere on its own. It exists for
+the cases storage permissions cannot cover: a deleted app, a lost phone, a bad
+restore.
+
+It lives in a **Backup** section below the logged-days table, collapsed and
+silent until you open it. Once connected it copies your whole history to one
+CSV file in a private repository after every change, and the collapsed header
+reports the state — `up to date`, `changes not backed up`, `not backed up` —
+so you never have to open it to know where you stand. It reopens itself if a
+push fails or a decision is needed, because a section that folds away must not
+fold a problem away with it.
+
+It is one-way: the device is the source of truth, and nothing comes back
+unless you ask for it.
 
 Because each save is a commit, you get the history for free: read the file on
 github.com, download it, diff two days, or recover the state from any earlier
@@ -91,8 +104,8 @@ To set it up:
    one with access to **only that repository** and the single permission
    **Contents: Read and write**. Give it whatever expiry you are willing to
    renew.
-3. Put the owner, repository and token into the Backup card and press
-   **Connect**. It verifies the token, then pushes immediately.
+3. Open **Backup** below the table, put in the owner, repository and token,
+   and press **Connect**. It verifies the token, then pushes immediately.
 
 **Setting it up on a replacement phone is safe.** If the repository already
 holds a backup, connecting writes *nothing* — it stops and tells you what it
@@ -210,7 +223,7 @@ static/          the frontend — ES modules, no build step, no CDN
   js/charts/       SVG chart engine and the three charts
   backup/github.js the GitHub Contents API, reduced to three calls
   backup/service.js one-way push of the whole CSV; restore on request
-  backup/          config.js (device-local settings), panel.js (the card)
+  backup/          config.js (device-local settings), panel.js (the section)
   persistence.js   asks the browser not to reclaim the data
   sw.js            service worker: precaches the app for offline use
 tests/           Python tests (pytest) and JS tests (node:test)

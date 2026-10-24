@@ -168,11 +168,44 @@ input[aria-invalid="true"] { border-color: var(--series-over); }
 .btn--ghost { color: var(--text-secondary); }
 .btn--danger { color: var(--series-over); }
 
-/* Backup card */
-.cards--single { grid-template-columns: 1fr; }
+/* Backup — a disclosure below the table, closed until it is wanted. */
+.backup {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.backup__summary {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px; cursor: pointer;
+  font-size: 14px; font-weight: 600;
+  border-radius: 10px;
+  list-style: none;
+}
+.backup__summary::-webkit-details-marker { display: none; }
+/* A marker of our own, so it reads as a disclosure on every browser. */
+.backup__summary::before {
+  content: '';
+  flex: 0 0 auto; width: 7px; height: 7px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(-45deg);
+  margin-inline-end: 2px;
+}
+.backup[open] > .backup__summary::before { transform: rotate(45deg); }
+.backup__summary:hover { background: var(--surface-sunken); }
+.backup__summary-state { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.backup__summary-state[data-kind="success"] { color: var(--good); }
+.backup__summary-state[data-kind="error"] { color: var(--series-over); }
+.backup__summary-state[data-kind="warn"] { color: var(--text-primary); }
+.backup__body {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
 .backup__intro { margin: 0; line-height: 1.5; }
 #backup-form { display: flex; flex-direction: column; gap: 12px; }
-#backup-card { gap: 12px; }
 
 .backup__status {
   margin: 0; font-size: 13px; color: var(--text-secondary);
