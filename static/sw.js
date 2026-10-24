@@ -8,7 +8,7 @@
    one and takes over on the next launch rather than mid-session, so a running
    app can never end up with half its ES modules from each version. */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `weight-tracker-${CACHE_VERSION}`;
 
 const PRECACHE = [
@@ -21,6 +21,7 @@ const PRECACHE = [
   'js/download.js',
   'js/format.js',
   'js/kpis.js',
+  'js/persistence.js',
   'js/pwa.js',
   'js/stats.js',
   'js/table.js',
@@ -31,6 +32,10 @@ const PRECACHE = [
   'js/backend/local.js',
   'js/backend/store.js',
   'js/backend/validate.js',
+  'js/backup/config.js',
+  'js/backup/github.js',
+  'js/backup/panel.js',
+  'js/backup/service.js',
   'js/charts/balance.js',
   'js/charts/calories.js',
   'js/charts/core.js',
@@ -58,6 +63,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
+
+  /* Only this app's own files are ours to serve. Anything cross-origin — the
+     GitHub API a backup talks to — goes straight to the network, so an
+     authenticated response can never meet this cache. */
+  if (new URL(request.url).origin !== self.location.origin) return;
 
   /* A navigation to any URL in scope is the app itself: serve the shell, so
      opening the app offline works however it was launched. */

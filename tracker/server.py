@@ -31,8 +31,11 @@ SECURITY_HEADERS = (
     ("Cache-Control", "no-store"),
     (
         "Content-Security-Policy",
+        # api.github.com is the single external host, reached only by the
+        # optional backup; everything else stays same-origin.
         "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
-        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        "connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; "
+        "frame-ancestors 'none'",
     ),
 )
 

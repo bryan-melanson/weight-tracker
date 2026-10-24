@@ -1,8 +1,8 @@
 # Weight & Calorie Tracker
 
-A local-only tracker for daily weight, calories eaten, and the calorie target
-you set. **No dependencies to install, no account, no network calls** — your
-data never leaves the device you enter it on.
+A tracker for daily weight, calories eaten, and the calorie target you set.
+**No dependencies to install, and no account** — by default your data never
+leaves the device you enter it on, and the app makes no network calls at all.
 
 It runs two ways, from one frontend:
 
@@ -10,6 +10,10 @@ It runs two ways, from one frontend:
   standard library server, a SQLite file, and a plain-JavaScript frontend.
 - **On an iPhone** as an app installed to the home screen, storing data in the
   browser's own database. No App Store, no Apple developer account, no Mac.
+
+Optionally it keeps a copy of your history in a private GitHub repository you
+own, so losing the phone does not lose the data. That is the only thing that
+ever talks to the network, and it is off until you switch it on.
 
 ## Run it on the desktop
 
@@ -59,11 +63,61 @@ on the desktop and **Import CSV** on the phone.
 
 Pick one as the one you actually log into, or they will drift apart.
 
-### Backups
+### How safe the data on the phone is
 
-iOS can reclaim a web app's storage if you leave it unopened for a long
-stretch, and an app deleted from the home screen takes its data with it. So
-**Export CSV every so often** — that file is the real backup. It saves through
+Safari's seven-day eviction of script-writable storage **does not apply to a
+home-screen web app** — only to ordinary tabs. On top of that the app asks for
+[persistent storage](https://webkit.org/blog/14403/updates-to-storage-policy/)
+after your first save, which iOS grants an installed app silently, so the data
+is not reclaimed under storage pressure either.
+
+What that still does not survive: deleting the app, losing or resetting the
+phone, or a bad restore. For those, back it up.
+
+### Backup to a private GitHub repository
+
+The **Backup** card copies your whole history to one CSV file in a private
+repository, after every change. It is one-way — the device is the source of
+truth, and nothing comes back unless you ask for it.
+
+Because each save is a commit, you get the history for free: read the file on
+github.com, download it, diff two days, or recover the state from any earlier
+point.
+
+To set it up:
+
+1. Make a **private** repository, e.g. `weight-data`. It can be empty.
+2. GitHub → Settings → Developer settings → **Fine-grained tokens** → generate
+   one with access to **only that repository** and the single permission
+   **Contents: Read and write**. Give it whatever expiry you are willing to
+   renew.
+3. Put the owner, repository and token into the Backup card and press
+   **Connect**. It verifies the token, then pushes immediately.
+
+**Setting it up on a replacement phone is safe.** If the repository already
+holds a backup, connecting writes *nothing* — it stops and tells you what it
+found, and you choose **Restore it to this device** or **Replace it**. The
+case where you have just lost a phone is exactly the case where a blind push
+would destroy what you came to recover, so it refuses to guess.
+
+Restoring imports the file, which merges by date: days in the backup overwrite
+the matching days on the device, and days only on the device are left alone.
+
+**About the token.** It is kept in this device's `localStorage`, scoped to this
+origin, and never leaves it except as an `Authorization` header to
+`api.github.com`. It is never written into the backup file, never rendered
+into the page, and never put into an error message — so a CSV you export or
+share carries no credential. Worth knowing: anyone who can unlock the phone
+can read it, and it grants write access to that one repository, so scope the
+token to that repository and nothing else. **Disconnect** forgets it.
+
+The app's Content-Security-Policy allows exactly one external host,
+`api.github.com`, and only for this.
+
+### Export CSV
+
+Still there, on both the desktop and the phone, and still the thing to use for
+a one-off copy or to move data between devices. On the phone it saves through
 the iOS share sheet, so it can go to Files, iCloud Drive, or anywhere else.
 
 ## What it tracks
@@ -154,6 +208,10 @@ static/          the frontend — ES modules, no build step, no CDN
   js/format.js     units, numbers, dates
   js/stats.js      derived metrics (trend, balance, projection)
   js/charts/       SVG chart engine and the three charts
+  backup/github.js the GitHub Contents API, reduced to three calls
+  backup/service.js one-way push of the whole CSV; restore on request
+  backup/          config.js (device-local settings), panel.js (the card)
+  persistence.js   asks the browser not to reclaim the data
   sw.js            service worker: precaches the app for offline use
 tests/           Python tests (pytest) and JS tests (node:test)
 ```
@@ -192,7 +250,8 @@ requests that look like they came from your own browser:
   cross-origin form posts cannot set, and any `Origin` they send must be
   loopback;
 - static file paths are resolved and confined to `static/`;
-- a Content-Security-Policy limits the page to its own origin.
+- a Content-Security-Policy limits the page to its own origin, plus
+  `api.github.com` for the optional backup and nothing else.
 
 This is a single-user local app: there is no authentication, so anyone with an
 account on this machine can read the data file.
@@ -203,6 +262,12 @@ since a static host sends no headers of its own. Its data lives in the
 browser's own storage, reachable only by that origin on that device, and
 anyone who can unlock the phone can read it.
 
+The backup token lives in that same storage. The app writes no HTML from data
+— every DOM write goes through `textContent`, and `script-src 'self'` with no
+inline scripts and no CDN leaves nothing to inject — so the usual way a token
+leaks from a page is closed off. It is also kept out of the backup file, the
+rendered page, and every error message, each of which is covered by a test.
+
 ## Tests
 
 ```bash
@@ -211,7 +276,7 @@ node --test "tests/js/*.test.js"   # frontend: units, dates, metrics, backend
 python3 -m pytest --cov=tracker --cov-report=term-missing
 ```
 
-362 tests; the Python package is at 94% line coverage.
+412 tests; the Python package is at 95% line coverage.
 
 The frontend suite covers the ported validation, CSV and store logic against
 an in-memory stand-in for IndexedDB, so it needs no browser and no

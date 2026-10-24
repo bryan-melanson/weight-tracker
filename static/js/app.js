@@ -2,7 +2,10 @@
    and re-render the KPI row, the three charts and the table from one place. */
 
 import { api, mode } from './api.js';
+import { createBackupService } from './backup/service.js';
+import { mountBackupPanel } from './backup/panel.js';
 import { offerFile } from './download.js';
+import { ensurePersisted } from './persistence.js';
 import { registerServiceWorker } from './pwa.js';
 import {
   UNIT_STEP,
@@ -35,6 +38,19 @@ const RANGE_KEY = 'weight-tracker:range';
 
 const $ = (selector) => document.querySelector(selector);
 const state = { settings: null, entries: [], rangeKey: localStorage.getItem(RANGE_KEY) || '90d' };
+
+/* Backups: the service owns the state, the panel draws it. Created before
+   boot so a stored config is picked up on the first render. */
+const backup = createBackupService({
+  api,
+  storage: localStorage,
+  onChange: (backupState) => {
+    if (!backupPanel) return;
+    backupPanel.render(backupState);
+    renderSubtitle();
+  },
+});
+let backupPanel = null;
 
 const charts = {
   weight: mountChart($('#chart-weight .chart-card__plot'), drawWeightChart),
@@ -123,16 +139,26 @@ function exerciseNote(summary) {
   return ` Exercise logged on ${summary.burnDays} day${summary.burnDays === 1 ? '' : 's'}${average}, already netted out above.`;
 }
 
+/* The one line that says where the data lives. Redrawn whenever the backup
+   state changes as well as on every render, so it never claims the data is
+   device-only after a backup has been switched on. */
+function renderSubtitle() {
+  const where = mode === 'http' ? 'this machine' : 'this device';
+  const { configured, repo } = backup.state();
+  const kept = configured ? `backed up to ${repo}` : `stored on ${where} only`;
+  const days = state.entries.length;
+  $('#topbar-sub').textContent = days
+    ? `${days} day${days === 1 ? '' : 's'} logged · data ${kept}`
+    : `Local data, ${kept}.`;
+}
+
 function render() {
   const settings = state.settings;
   const range = activeRange();
   const summary = summarize(state.entries, settings, range);
   syncUnitLabels();
 
-  const where = mode === 'http' ? 'this machine' : 'this device';
-  $('#topbar-sub').textContent = state.entries.length
-    ? `${state.entries.length} day${state.entries.length === 1 ? '' : 's'} logged · data stored on ${where} only`
-    : `Local data, stored on ${where} only.`;
+  renderSubtitle();
 
   renderKpis($('#kpis'), summary, settings, range.option.short.toLowerCase() === 'all' ? 'all time' : range.option.short);
 
@@ -230,16 +256,53 @@ function markField(form, field) {
   }
 }
 
+/* Reloading after a save refills both forms from the stored data. That is
+   right when the user is waiting on it and wrong the moment they have started
+   typing again — a save that lands mid-entry would wipe what they are part way
+   through, and on a phone the save is a network round trip away. So every
+   action notes how many edits each form had seen when it began, and a reload
+   only refills a form nobody has touched since.
+
+   The same snapshot settles the status line: a save finishing after a later
+   one started must not write its result over the newer one, or a slow save
+   landing after a rejected one replaces the error with "Saved" and the user
+   is told their rejected entry went in. */
+let currentTurn = 0;
+let entryEdits = 0;
+let targetEdits = 0;
+
+function beginAction() {
+  const turn = (currentTurn += 1);
+  const entry = entryEdits;
+  const targets = targetEdits;
+  return {
+    isCurrent: () => turn === currentTurn,
+    entryUntouched: () => entry === entryEdits,
+    targetsUntouched: () => targets === targetEdits,
+  };
+}
+
 async function withErrors(form, action, successMessage) {
+  const turn = beginAction();
   clearFieldErrors(form);
   try {
     await action();
-    await reload();
-    setStatus(successMessage, 'success');
+    await dataChanged(turn);
+    if (turn.isCurrent()) setStatus(successMessage, 'success');
   } catch (error) {
+    if (!turn.isCurrent()) return;
     if (error.field) markField(form, FIELD_TO_INPUT[error.field] || error.field);
     setStatus(error.message, 'error');
   }
+}
+
+/* One place for "the data changed": re-read it, ask the browser to hold on to
+   it, and push a backup if one is configured. The backup runs unawaited —
+   its own status line reports it, and a failure leaves the change pending. */
+async function dataChanged(turn = null) {
+  await reload(turn);
+  ensurePersisted();
+  backup.markChanged();
 }
 
 function blankToNull(value) {
@@ -286,12 +349,13 @@ function onTargetsSubmit(event) {
 async function deleteEntry(entry) {
   const label = fmtDateLong(entry.date);
   if (!window.confirm(`Delete the entry for ${label}? This cannot be undone.`)) return;
+  const turn = beginAction();
   try {
     await api.deleteEntry(entry.date);
-    await reload();
-    setStatus(`Deleted ${label}.`, 'success');
+    await dataChanged(turn);
+    if (turn.isCurrent()) setStatus(`Deleted ${label}.`, 'success');
   } catch (error) {
-    setStatus(error.message, 'error');
+    if (turn.isCurrent()) setStatus(error.message, 'error');
   }
 }
 
@@ -309,12 +373,17 @@ async function onImport(event) {
   const [file] = event.target.files;
   event.target.value = '';
   if (!file) return;
+  const turn = beginAction();
   try {
     const result = await api.importCsv(await file.text());
-    await reload();
-    setStatus(`Imported ${result.imported} day${result.imported === 1 ? '' : 's'} from ${file.name}.`, 'success');
+    // An import replaces the data wholesale, so both forms are refilled even
+    // if something was half-typed: what is on screen is no longer the truth.
+    await dataChanged();
+    if (turn.isCurrent()) {
+      setStatus(`Imported ${result.imported} day${result.imported === 1 ? '' : 's'} from ${file.name}.`, 'success');
+    }
   } catch (error) {
-    setStatus(error.message, 'error');
+    if (turn.isCurrent()) setStatus(error.message, 'error');
   }
 }
 
@@ -341,18 +410,20 @@ function toggleTheme() {
 
 /* --- boot -------------------------------------------------------------- */
 
-async function reload() {
+async function reload(turn = null) {
   const data = await api.getState();
   state.settings = data.settings;
   state.entries = data.entries;
-  fillTargetsForm();
-  syncFormToDate();
+  if (!turn || turn.targetsUntouched()) fillTargetsForm();
+  if (!turn || turn.entryUntouched()) syncFormToDate();
   render();
 }
 
 function wireEvents() {
   $('#entry-form').addEventListener('submit', onEntrySubmit);
   $('#targets-form').addEventListener('submit', onTargetsSubmit);
+  $('#entry-form').addEventListener('input', () => { entryEdits += 1; });
+  $('#targets-form').addEventListener('input', () => { targetEdits += 1; });
   $('#entry-date').addEventListener('change', syncFormToDate);
   $('#entry-delete').addEventListener('click', () => {
     const entry = entryFor($('#entry-date').value);
@@ -374,6 +445,8 @@ async function boot() {
   $('#entry-date').value = todayISO();
   renderRangeFilter();
   wireEvents();
+  backupPanel = mountBackupPanel({ service: backup, onDataChanged: dataChanged, setStatus });
+  backupPanel.render(backup.state());
   try {
     await reload();
   } catch (error) {

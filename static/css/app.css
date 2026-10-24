@@ -62,6 +62,11 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* A `hidden` attribute has to win over any display a rule below gives an
+   element, or toggling visibility from JavaScript silently does nothing on
+   everything laid out with flex or grid. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--page);
@@ -162,6 +167,30 @@ input[aria-invalid="true"] { border-color: var(--series-over); }
 .btn--primary:hover { filter: brightness(0.94); background: var(--series-1); }
 .btn--ghost { color: var(--text-secondary); }
 .btn--danger { color: var(--series-over); }
+
+/* Backup card */
+.cards--single { grid-template-columns: 1fr; }
+.backup__intro { margin: 0; line-height: 1.5; }
+#backup-form { display: flex; flex-direction: column; gap: 12px; }
+#backup-card { gap: 12px; }
+
+.backup__status {
+  margin: 0; font-size: 13px; color: var(--text-secondary);
+}
+.backup__status[data-kind="success"] { color: var(--good); }
+.backup__status[data-kind="error"] { color: var(--series-over); }
+/* Pending is not an error — the data is safe, just not copied out yet. */
+.backup__status[data-kind="warn"] { color: var(--text-primary); font-weight: 500; }
+
+/* The found-a-backup prompt: this is the one place the app asks before it
+   could destroy something, so it is given weight. */
+.backup__found {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; border-radius: 8px;
+  border: 1px solid var(--series-over);
+  background: var(--surface-sunken);
+}
+.backup__found p { margin: 0; font-size: 13px; line-height: 1.5; }
 
 /* Filter row — one row, above everything it scopes */
 .filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

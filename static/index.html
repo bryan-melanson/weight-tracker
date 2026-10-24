@@ -9,8 +9,9 @@
 
   <!-- The policy the Python server sends as a header, repeated here for the
        installed app, which is served by a static host that sends none.
-       frame-ancestors is omitted because a meta policy may not set it. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+       frame-ancestors is omitted because a meta policy may not set it.
+       api.github.com is the one external host, and only for backups. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://api.github.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>&#9878;</text></svg>">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -139,6 +140,75 @@
         <button type="submit" class="btn btn--primary">Save targets</button>
       </div>
     </form>
+  </section>
+
+  <section class="cards cards--single">
+    <section class="card" id="backup-card" aria-labelledby="backup-title">
+      <h2 class="card__title" id="backup-title">Backup</h2>
+
+      <p class="backup__status" id="backup-status" role="status" aria-live="polite"></p>
+
+      <!-- Shown when a repository already holds a backup: the device must not
+           quietly replace it, so the choice is put to the user. -->
+      <div class="backup__found" id="backup-found" hidden>
+        <p id="backup-found-text"></p>
+        <div class="card__actions">
+          <button type="button" class="btn btn--primary" id="backup-restore">Restore it to this device</button>
+          <button type="button" class="btn btn--danger" id="backup-replace">Replace it with this device</button>
+        </div>
+      </div>
+
+      <form id="backup-form" novalidate>
+        <p class="field__hint backup__intro">
+          Keep a copy of every day you log in a private GitHub repository, so
+          losing this phone does not lose your history. The file is a CSV and
+          each save is a commit, so you can read it, download it, or go back to
+          any earlier version. Nothing is sent anywhere until you connect.
+        </p>
+        <div class="field-grid">
+          <p class="field">
+            <label for="backup-owner">Owner</label>
+            <input type="text" id="backup-owner" name="owner" autocomplete="off"
+                   autocapitalize="off" spellcheck="false" placeholder="your-github-username">
+          </p>
+          <p class="field">
+            <label for="backup-repo">Private repository</label>
+            <input type="text" id="backup-repo" name="repo" autocomplete="off"
+                   autocapitalize="off" spellcheck="false" placeholder="weight-data">
+          </p>
+          <p class="field">
+            <label for="backup-path">File <span class="field__hint">in that repo</span></label>
+            <input type="text" id="backup-path" name="path" autocomplete="off"
+                   autocapitalize="off" spellcheck="false" value="weight.csv">
+          </p>
+          <p class="field">
+            <label for="backup-branch">Branch</label>
+            <input type="text" id="backup-branch" name="branch" autocomplete="off"
+                   autocapitalize="off" spellcheck="false" value="main">
+          </p>
+        </div>
+        <p class="field">
+          <label for="backup-token">Fine-grained token</label>
+          <input type="password" id="backup-token" name="token" autocomplete="off"
+                 autocapitalize="off" spellcheck="false" placeholder="github_pat_...">
+          <span class="field__hint">
+            GitHub → Settings → Developer settings → Fine-grained tokens. Give it
+            access to that one repository, with <strong>Contents: Read and
+            write</strong>. It is kept on this device only and never written into
+            the backup file.
+          </span>
+        </p>
+        <div class="card__actions">
+          <button type="submit" class="btn btn--primary" id="backup-connect">Connect</button>
+        </div>
+      </form>
+
+      <div class="card__actions" id="backup-actions" hidden>
+        <button type="button" class="btn btn--primary" id="backup-now">Back up now</button>
+        <button type="button" class="btn btn--ghost" id="backup-restore-later">Restore from backup</button>
+        <button type="button" class="btn btn--ghost btn--danger" id="backup-disconnect">Disconnect</button>
+      </div>
+    </section>
   </section>
 
   <div class="filters" role="group" aria-label="Date range">
