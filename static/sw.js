@@ -5,10 +5,13 @@
    and stays that way.
 
    Updating: bump CACHE_VERSION. The new worker precaches alongside the old
-   one and takes over on the next launch rather than mid-session, so a running
-   app can never end up with half its ES modules from each version. */
+   one and then takes over immediately, and the page it inherits reloads itself
+   (see js/pwa.js), so a running app can never end up with half its ES modules
+   from each version. Waiting for every tab to close instead — the old
+   behaviour — meant an installed app could sit on a stale cache indefinitely,
+   because quitting it is something the person using it has to think to do. */
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = `weight-tracker-${CACHE_VERSION}`;
 
 const PRECACHE = [
@@ -48,15 +51,22 @@ const PRECACHE = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)),
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(PRECACHE))
+      // Only once every file is cached: a worker that took over mid-download
+      // would have nothing to serve for whatever had not arrived yet.
+      .then(() => self.skipWaiting()),
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((names) => Promise.all(
-      names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name)),
-    )),
+    caches.keys()
+      .then((names) => Promise.all(
+        names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name)),
+      ))
+      // Last, so the page is never claimed into a cache still being emptied.
+      .then(() => self.clients.claim()),
   );
 });
 
