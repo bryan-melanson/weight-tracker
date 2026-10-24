@@ -45,7 +45,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+      # enablement: turns Pages on for the repository on the first run, so
+      # the only manual step left is making the repository public (Pages does
+      # not serve a private repository without Pro).
       - uses: actions/configure-pages@v6
+        with:
+          enablement: true
       # Only static/ is published: the Python package and the tests have no
       # business on a public web root.
       - uses: actions/upload-pages-artifact@v5
