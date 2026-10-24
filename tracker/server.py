@@ -205,12 +205,19 @@ class TrackerServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, address, handler, db_path):
+        # Declared before binding: a bind that fails (the port is already in
+        # use, say) makes the base class call server_close() on a half-built
+        # object, and that must report the real error rather than an
+        # AttributeError about a store that was never opened.
+        self.store = None
         super().__init__(address, handler)
         self.store = Store(db_path)
 
     def server_close(self) -> None:
         super().server_close()
-        self.store.close()
+        if self.store is not None:
+            self.store.close()
+            self.store = None
 
 
 def create_server(host: str = config.DEFAULT_HOST, port: int = config.DEFAULT_PORT, db_path=None) -> TrackerServer:

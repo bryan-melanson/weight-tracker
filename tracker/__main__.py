@@ -19,7 +19,18 @@ def parse_args(argv=None) -> argparse.Namespace:
 
 def main(argv=None) -> int:
     args = parse_args(argv)
-    httpd = create_server(args.host, args.port, args.db)
+    try:
+        httpd = create_server(args.host, args.port, args.db)
+    except OSError as exc:
+        # Overwhelmingly this is "that port is already in use" — most likely
+        # another copy of the tracker. Say so instead of printing a traceback.
+        print(
+            f"Could not start on {args.host}:{args.port}: {exc.strerror or exc}.\n"
+            f"If the tracker is already running, open http://{args.host}:{args.port}/ "
+            f"instead, or pass --port to use a different one.",
+            file=sys.stderr,
+        )
+        return 1
     url = f"http://{args.host}:{httpd.server_address[1]}/"
     print(f"Weight tracker running at {url}\nData file: {args.db}\nPress Ctrl+C to stop.")
     if not args.no_browser:
