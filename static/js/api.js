@@ -1,34 +1,30 @@
-/* Thin API client. Every mutating call carries the CSRF header the server
-   requires, and every response is unwrapped from the {ok, data} envelope. */
+/* Which backend the app talks to.
 
-const CSRF = { 'X-Requested-With': 'weight-tracker' };
+   On loopback the page was served by the Python server, so it uses that and
+   its SQLite file. Anywhere else — the installed web app on a phone, served
+   from a static host with no server behind it — it stores data on the device
+   in IndexedDB.
 
-async function send(method, path, body) {
-  const options = { method, headers: { ...CSRF } };
-  if (body !== undefined) {
-    options.headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(body);
-  }
-  const response = await fetch(path, options);
-  let payload = null;
-  try {
-    payload = await response.json();
-  } catch {
-    throw new Error(`Server returned ${response.status} with an unreadable body.`);
-  }
-  if (!response.ok || payload.ok === false) {
-    const error = new Error(payload.error || `Request failed (${response.status}).`);
-    error.field = payload.field || null;
-    throw error;
-  }
-  return payload.data;
+   The two expose the same methods, so nothing downstream of here knows or
+   cares which one it is holding. */
+
+import { httpApi } from './backend/http.js';
+import { localApi } from './backend/local.js';
+
+/* Mirrors config.ALLOWED_HOST_NAMES: the only hosts the Python server will
+   answer to, so the only hosts that can have served this page. */
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
+/* `?backend=local` runs the on-device backend against a plain static server on
+   localhost, which is the only way to exercise it — and its service worker —
+   without deploying. Deliberately not remembered: the installed app's
+   start_url carries no query, so this can never leak into normal use, and a
+   reload of the desktop app is always back on the server. */
+function requested() {
+  const value = new URLSearchParams(window.location.search).get('backend');
+  return value === 'local' || value === 'http' ? value : null;
 }
 
-export const api = {
-  getState: () => send('GET', '/api/state'),
-  saveSettings: (patch) => send('PUT', '/api/settings', patch),
-  saveEntry: (date, patch) => send('PUT', `/api/entries/${encodeURIComponent(date)}`, patch),
-  deleteEntry: (date) => send('DELETE', `/api/entries/${encodeURIComponent(date)}`),
-  importCsv: (csv) => send('POST', '/api/import.csv', { csv }),
-  exportUrl: () => '/api/export.csv',
-};
+export const mode = requested() || (LOOPBACK.has(window.location.hostname) ? 'http' : 'local');
+
+export const api = mode === 'http' ? httpApi : localApi;

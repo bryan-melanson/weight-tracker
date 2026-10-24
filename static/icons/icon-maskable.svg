@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Weight tracker">
+  <!-- Maskable variant: the same art inset into the safe zone, so a circular
+       or squircle mask cannot clip the trend line. -->
+  <rect width="512" height="512" fill="#2a78d6"/>
+  <g transform="translate(256 256) scale(0.72) translate(-256 -256)">
+    <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M104 368 H408" stroke-width="14" stroke-dasharray="28 26" opacity="0.45"/>
+      <path d="M104 168 L200 248 L296 216 L400 312" stroke-width="30"/>
+    </g>
+    <circle cx="400" cy="312" r="28" fill="#ffffff"/>
+  </g>
+</svg>

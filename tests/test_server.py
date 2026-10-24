@@ -55,6 +55,24 @@ class TestStaticFiles:
     def test_sends_no_store_cache_header(self, live):
         assert "no-store" in request(live + "/")[2].get("Cache-Control", "")
 
+    def test_serves_the_web_app_manifest(self, live):
+        """index.html links it, so the desktop app requests it too."""
+        status, body, headers = request(live + "/manifest.webmanifest")
+        assert status == 200
+        assert headers["Content-Type"] == "application/manifest+json"
+        assert json.loads(body)["start_url"] == "./"
+
+    def test_serves_an_icon(self, live):
+        status, body, headers = request(live + "/icons/icon-192.png")
+        assert status == 200
+        assert headers["Content-Type"] == "image/png"
+        assert body[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_serves_a_nested_backend_module(self, live):
+        status, _, headers = request(live + "/js/backend/local.js")
+        assert status == 200
+        assert headers["Content-Type"].startswith(("application/javascript", "text/javascript"))
+
 
 class TestApiOverHttp:
     def test_state_round_trip(self, live):

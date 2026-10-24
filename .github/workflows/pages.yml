@@ -1,0 +1,52 @@
+# Publishes static/ to GitHub Pages, which is where the iPhone installs the
+# app from. The tests gate the deploy: a broken push should never reach a
+# phone that then caches it for offline use.
+name: Deploy to Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one half-done.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Server tests
+        run: python3 -m pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Frontend tests
+        run: node --test "tests/js/*.test.js"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      # Only static/ is published: the Python package and the tests have no
+      # business on a public web root.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: static
+      - id: deployment
+        uses: actions/deploy-pages@v4

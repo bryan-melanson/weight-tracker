@@ -2,9 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- viewport-fit=cover lets the page paint behind the status bar and home
+       indicator; app.css pays that back with safe-area padding. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Weight &amp; Calorie Tracker</title>
+
+  <!-- The policy the Python server sends as a header, repeated here for the
+       installed app, which is served by a static host that sends none.
+       frame-ancestors is omitted because a meta policy may not set it. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>&#9878;</text></svg>">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <!-- Home-screen app on iOS: its own icon, no browser chrome, and a
+       translucent status bar so the page background shows through it and
+       follows the light or dark theme. -->
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Weight">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -12,7 +33,7 @@
   <header class="topbar">
     <div>
       <h1>Weight &amp; calorie tracker</h1>
-      <p class="topbar__sub" id="topbar-sub">Local data, stored on this machine only.</p>
+      <p class="topbar__sub" id="topbar-sub">Local data, stored on this device only.</p>
     </div>
     <div class="topbar__actions">
       <button type="button" id="theme-toggle" class="btn btn--ghost" aria-pressed="false">

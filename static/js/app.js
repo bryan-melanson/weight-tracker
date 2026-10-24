@@ -1,7 +1,9 @@
 /* Application shell: load state, keep the forms and the range filter in sync,
    and re-render the KPI row, the three charts and the table from one place. */
 
-import { api } from './api.js';
+import { api, mode } from './api.js';
+import { offerFile } from './download.js';
+import { registerServiceWorker } from './pwa.js';
 import {
   UNIT_STEP,
   WEEKDAYS,
@@ -127,9 +129,10 @@ function render() {
   const summary = summarize(state.entries, settings, range);
   syncUnitLabels();
 
+  const where = mode === 'http' ? 'this machine' : 'this device';
   $('#topbar-sub').textContent = state.entries.length
-    ? `${state.entries.length} day${state.entries.length === 1 ? '' : 's'} logged · data stored on this machine only`
-    : 'Local data, stored on this machine only.';
+    ? `${state.entries.length} day${state.entries.length === 1 ? '' : 's'} logged · data stored on ${where} only`
+    : `Local data, stored on ${where} only.`;
 
   renderKpis($('#kpis'), summary, settings, range.option.short.toLowerCase() === 'all' ? 'all time' : range.option.short);
 
@@ -292,6 +295,16 @@ async function deleteEntry(entry) {
   }
 }
 
+async function onExport() {
+  try {
+    const csv = await api.exportCsv();
+    const result = await offerFile(`weight-tracker-${todayISO()}.csv`, csv);
+    if (result === 'shared') setStatus('Exported.', 'success');
+  } catch (error) {
+    setStatus(`Could not export: ${error.message}`, 'error');
+  }
+}
+
 async function onImport(event) {
   const [file] = event.target.files;
   event.target.value = '';
@@ -346,7 +359,7 @@ function wireEvents() {
     if (entry) deleteEntry(entry);
   });
   $('#theme-toggle').addEventListener('click', toggleTheme);
-  $('#export-btn').addEventListener('click', () => { window.location.href = api.exportUrl(); });
+  $('#export-btn').addEventListener('click', onExport);
   $('#import-btn').addEventListener('click', () => $('#import-input').click());
   $('#import-input').addEventListener('change', onImport);
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -355,6 +368,7 @@ function wireEvents() {
 }
 
 async function boot() {
+  registerServiceWorker();
   applyTheme(localStorage.getItem(THEME_KEY));
   $('#entry-date').max = todayISO();
   $('#entry-date').value = todayISO();

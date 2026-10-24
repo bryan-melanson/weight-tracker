@@ -76,7 +76,12 @@ body {
 .app {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 24px 20px 64px;
+  /* The page paints behind the status bar and home indicator (viewport-fit
+     =cover in index.html), so the insets are added back here. They are 0 on
+     every device without a notch, which leaves the desktop padding as it was. */
+  padding:
+    calc(24px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right))
+    calc(64px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -249,6 +254,39 @@ input[aria-invalid="true"] { border-color: var(--series-over); }
 .empty-text { fill: var(--text-muted); font-size: 13px; }
 .bar { cursor: default; }
 .bar--hover { opacity: 0.78; }
+
+/* Touch devices — the installed home-screen app, chiefly.
+   Keyed on the pointer rather than the width, so a narrow desktop window is
+   left alone and a phone in landscape still gets all of it. */
+@media (pointer: coarse) {
+  /* Safari zooms the page when a focused input's text is under 16px. */
+  input, select { font-size: 16px; }
+
+  /* Comfortable, reliably hittable targets. */
+  .btn, .segmented button { min-height: 44px; }
+  .row-btn { min-height: 40px; min-width: 40px; padding: 8px 10px; }
+  .segmented button { padding-inline: 16px; }
+
+  /* A tap is not a text selection, and the grey flash reads as a web page. */
+  .btn, .row-btn, .segmented button, #theme-toggle {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* Hover styling sticks after a tap on touch; the :hover rules above are for
+     pointers that can actually hover. */
+  .data-table tbody tr:hover { background: none; }
+
+  /* The one horizontally scrolling region: let it scroll on its own without
+     rubber-banding the whole page. */
+  .table-scroll { overscroll-behavior-x: contain; }
+}
+
+/* Standalone: there is no browser chrome to absorb an overscroll, so the page
+   should not bounce as though there were. */
+@media (display-mode: standalone) {
+  body { overscroll-behavior-y: none; }
+}
 
 @media (prefers-reduced-motion: no-preference) {
   .bar, .btn { transition: opacity 120ms ease, background-color 120ms ease; }
