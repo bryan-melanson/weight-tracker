@@ -8,7 +8,7 @@
    one and takes over on the next launch rather than mid-session, so a running
    app can never end up with half its ES modules from each version. */
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = `weight-tracker-${CACHE_VERSION}`;
 
 const PRECACHE = [
