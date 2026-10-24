@@ -153,21 +153,30 @@ input:focus-visible, select:focus-visible, .btn:focus-visible, tr:focus-visible,
 }
 input[aria-invalid="true"] { border-color: var(--series-over); }
 
-/* WebKit renders a date field through its own native control, a few pixels
-   taller than every other input, which on iOS leaves the date box standing
-   proud of the ones beside it. Strip the native chrome and zero the inner
-   value's own spacing so it sits on the same line box as a text field. */
+/* WebKit renders a date field through its own native control, which is taller
+   than every other input and ignores the padding above, so on iOS the date box
+   stands proud of the fields beside it. Strip the native chrome, zero the
+   inner value's own spacing, and pin the height to what the shared padding and
+   border give a text field — 1.5em of line box plus 14px padding and 2px
+   border — so the two match by construction at either font size. */
 input[type="date"] {
   -webkit-appearance: none;
   appearance: none;
   line-height: 1.5;
+  height: calc(1.5em + 16px);
 }
 input[type="date"]::-webkit-date-and-time-value {
   margin: 0;
+  padding: 0;
+  height: 1.5em;
   line-height: 1.5;
   text-align: left;
 }
-input[type="date"]::-webkit-datetime-edit { padding: 0; }
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  margin: 0;
+  padding: 0;
+}
 
 .btn {
   font: inherit; font-weight: 500;
