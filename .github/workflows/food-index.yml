@@ -1,4 +1,4 @@
-# Rebuilds static/data/foods.json from the USDA FoodData Central releases and
+# Rebuilds static/foods.json from the USDA FoodData Central releases and
 # commits it to the branch it ran on. Run it by hand after changing the release
 # URLs in tools/build_food_index.py; it also runs when that script or this workflow changes.
 # Never on master: the index reaches master only through a reviewed merge.
@@ -41,7 +41,7 @@ jobs:
           exec 2> trace.log
           trap 'echo "::error title=commit step::$(tail -6 trace.log | tr "\n" " ")"' ERR
           set -x
-          git add static/data/foods.json
+          git add static/foods.json
           if git diff --cached --quiet; then
             echo "food index unchanged"
             exit 0

@@ -20,7 +20,7 @@ _spec = importlib.util.spec_from_file_location("build_food_index", ROOT / "tools
 builder = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(builder)
 
-INDEX = ROOT / "static" / "data" / "foods.json"
+INDEX = ROOT / "static" / "foods.json"
 
 
 def _csv(rows: list[dict]) -> str:

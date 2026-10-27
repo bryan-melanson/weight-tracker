@@ -4,7 +4,7 @@
     python3 tools/build_food_index.py a.zip b.zip  # build from local zips
 
 Reads the SR Legacy and Foundation Foods CSV releases and writes
-static/data/foods.json: every food's name, its calories per 100 g, and the
+static/foods.json: every food's name, its calories per 100 g, and the
 household portions USDA measured for it ("1 cup, chopped" = 160 g). Nothing
 else from the release is kept, so the file stays small enough to precache.
 
@@ -24,7 +24,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUTPUT = ROOT / "static" / "data" / "foods.json"
+OUTPUT = ROOT / "static" / "foods.json"
 
 BASE = "https://fdc.nal.usda.gov/fdc-datasets/"
 RELEASES = (
