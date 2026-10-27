@@ -161,13 +161,15 @@ class TestPortionLabel:
         assert builder.portion_label(unit, description, modifier) == expected
 
 
+@pytest.fixture(scope="module")
+def index():
+    return json.loads(INDEX.read_text(encoding="utf-8"))
+
+
 @pytest.mark.skipif(not INDEX.exists(), reason="food index not built yet")
 class TestCommittedIndex:
     """Sanity checks on the shipped file, which the app trusts as-is."""
 
-    @pytest.fixture(scope="class")
-    def index(self):
-        return json.loads(INDEX.read_text(encoding="utf-8"))
 
     def test_has_thousands_of_foods(self, index):
         assert len(index["foods"]) > 5000
@@ -182,3 +184,27 @@ class TestCommittedIndex:
 
     def test_small_enough_to_precache(self):
         assert INDEX.stat().st_size < 3 * 1024 * 1024
+
+    def test_names_are_unique(self, index):
+        names = [food[0] for food in index["foods"]]
+        assert len(names) == len(set(names))
+
+
+class TestDuplicates:
+    def test_same_name_merges_preferring_foundation(self, sr_legacy):
+        foundation = _zip(
+            "FoodData_Central_foundation_food_csv_2026-04-30",
+            {
+                "nutrient.csv": NUTRIENTS,
+                "measure_unit.csv": UNITS,
+                "food.csv": [{"fdc_id": "20", "data_type": "foundation_food", "description": "Bananas, raw"}],
+                "food_nutrient.csv": [{"id": "g", "fdc_id": "20", "nutrient_id": "2048", "amount": "97"}],
+                "food_portion.csv": [_portion("20", "1", "1000", "", "", "150")],
+            },
+        )
+        index = builder.build([sr_legacy, foundation])
+        assert [food[0] for food in index["foods"]].count("Bananas, raw") == 1
+        kcal, portions = _by_name(index)["Bananas, raw"]
+        assert kcal == 97
+        labels = dict(portions)
+        assert labels["cup"] == 150 and labels["cup, mashed"] == 225

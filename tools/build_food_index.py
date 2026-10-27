@@ -138,13 +138,25 @@ def build(archives) -> dict:
             if label:
                 food["portions"].setdefault(label, grams / (amount or 1))
 
-    out = []
-    for food in foods.values():
+    # The two releases, and Foundation Foods within itself, list some foods
+    # more than once under one name ("Broccoli, raw" three times). Offering
+    # three identical rows is noise, so they merge: the energy of the most
+    # recently analysed one — Foundation over SR Legacy — and every measure
+    # any of them had.
+    merged: dict[str, dict] = {}
+    order = sorted(foods.values(), key=lambda food: food["source"] != "foundation")
+    for food in order:
         if not food["energy"]:
             continue  # nothing to count it by
         kcal = food["energy"][min(food["energy"])]
+        into = merged.setdefault(food["name"], {"kcal": kcal, "portions": {}})
+        for label, grams in food["portions"].items():
+            into["portions"].setdefault(label, grams)
+
+    out = []
+    for name, food in merged.items():
         portions = [[label, _trim(grams)] for label, grams in food["portions"].items() if _trim(grams) > 0]
-        out.append([food["name"], _trim(kcal), portions])
+        out.append([name, _trim(food["kcal"]), portions])
     out.sort(key=lambda item: item[0].lower())
 
     return {

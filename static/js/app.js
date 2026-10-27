@@ -3,6 +3,7 @@
 
 import { api, mode } from './api.js';
 import { createBackupService } from './backup/service.js';
+import { mountFoodPanel } from './foods/panel.js';
 import { mountBackupPanel } from './backup/panel.js';
 import { offerFile } from './download.js';
 import { ensurePersisted } from './persistence.js';
@@ -51,6 +52,7 @@ const backup = createBackupService({
   },
 });
 let backupPanel = null;
+let foodPanel = null;
 
 const charts = {
   weight: mountChart($('#chart-weight .chart-card__plot'), drawWeightChart),
@@ -219,6 +221,47 @@ function loadEntryIntoForm(entry) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+/* Once a day has foods, its calories are their total — the store enforces
+   it, and the field says so rather than offering a number it would ignore.
+   Kept apart from syncFormToDate so a food saved while the rest of the form
+   is half-typed still updates it. */
+function syncCaloriesField() {
+  const entry = entryFor($('#entry-date').value);
+  const fromFoods = Boolean(entry && entry.foods && entry.foods.length);
+  const input = $('#entry-calories');
+  input.disabled = fromFoods;
+  if (fromFoods) input.value = entry.calories;
+  $('#entry-calories-hint').textContent = fromFoods ? 'from the food list' : '';
+}
+
+function foodContext() {
+  const date = $('#entry-date').value || todayISO();
+  const entry = entryFor(date);
+  const target = entry && entry.calorie_target !== null && entry.calorie_target !== undefined
+    ? entry.calorie_target
+    : targetForDate(date, state.settings);
+  return {
+    date,
+    entry,
+    entries: state.entries,
+    target,
+    dateLabel: date === todayISO() ? 'today' : fmtDateLong(date),
+  };
+}
+
+async function saveFoods(date, foods, message) {
+  const turn = beginAction();
+  try {
+    await api.saveEntry(date, { foods });
+    await dataChanged(turn);
+    if (turn.isCurrent()) setStatus(message, 'success');
+    return true;
+  } catch (error) {
+    if (turn.isCurrent()) setStatus(error.message, 'error');
+    return false;
+  }
+}
+
 function syncFormToDate() {
   const date = $('#entry-date').value;
   const entry = entryFor(date);
@@ -234,6 +277,8 @@ function syncFormToDate() {
   $('#entry-target').value = entry && entry.calorie_target !== null ? entry.calorie_target : '';
   $('#entry-note').value = (entry && entry.note) || '';
   $('#entry-delete').disabled = !entry;
+  syncCaloriesField();
+  if (foodPanel) foodPanel.render();
 }
 
 /* Server-side field names, mapped to the input that carries them. */
@@ -326,6 +371,8 @@ function onEntrySubmit(event) {
     calorie_target: blankToNull($('#entry-target').value),
     note: $('#entry-note').value,
   };
+  // A day with foods takes its calories from them; the field is only a view.
+  if ($('#entry-calories').disabled) delete patch.calories;
   withErrors(form, () => api.saveEntry(date, patch), `Saved ${fmtDateLong(date)}.`);
 }
 
@@ -416,7 +463,9 @@ async function reload(turn = null) {
   state.entries = data.entries;
   if (!turn || turn.targetsUntouched()) fillTargetsForm();
   if (!turn || turn.entryUntouched()) syncFormToDate();
+  syncCaloriesField();
   render();
+  foodPanel.render();
 }
 
 function wireEvents() {
@@ -447,6 +496,7 @@ async function boot() {
   wireEvents();
   backupPanel = mountBackupPanel({ service: backup, onDataChanged: dataChanged, setStatus });
   backupPanel.render(backup.state());
+  foodPanel = mountFoodPanel({ context: foodContext, save: saveFoods, setStatus });
   try {
     await reload();
   } catch (error) {

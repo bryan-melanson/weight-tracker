@@ -58,7 +58,7 @@
           <input type="number" id="entry-weight" name="weight" step="0.1" min="0" inputmode="decimal">
         </p>
         <p class="field">
-          <label for="entry-calories">Calories eaten</label>
+          <label for="entry-calories">Calories eaten <span class="field__hint" id="entry-calories-hint"></span></label>
           <input type="number" id="entry-calories" name="calories" step="10" min="0" inputmode="numeric">
         </p>
         <p class="field">
@@ -79,6 +79,78 @@
         <button type="button" class="btn btn--ghost" id="entry-delete">Delete this day</button>
       </div>
     </form>
+
+    <!-- The day's food log. It follows the date in "Log a day", and once a
+         day has foods its calories are their total. Search runs on this
+         device against a bundled copy of USDA FoodData Central. -->
+    <section class="card food-card" id="food-card" aria-labelledby="food-title">
+      <div class="food-card__head">
+        <h2 class="card__title" id="food-title">Food <span class="field__hint" id="food-date"></span></h2>
+        <p class="food-total" id="food-total" aria-live="polite"></p>
+      </div>
+      <div class="meter" aria-hidden="true"><span class="meter__fill" id="food-meter"></span></div>
+
+      <div class="food-search" id="food-search">
+        <label for="food-query" class="visually-hidden">Search foods</label>
+        <input type="search" id="food-query" autocomplete="off" autocapitalize="off" spellcheck="false"
+               enterkeyhint="search" placeholder="Search foods — banana, oats, cheddar…"
+               aria-controls="food-results" aria-describedby="food-results-note">
+        <p class="field__hint food-results__note" id="food-results-note" aria-live="polite"></p>
+        <ul class="food-results" id="food-results"></ul>
+        <button type="button" class="btn btn--ghost food-custom-open" id="food-custom-open">Add a food that isn't listed</button>
+      </div>
+
+      <!-- Picking an amount: opened by a search result, or by tapping a food
+           already on the day to change it. -->
+      <form class="food-picker" id="food-picker" novalidate hidden>
+        <p class="food-picker__name" id="food-picker-name"></p>
+        <div class="food-picker__row">
+          <p class="field food-picker__amount">
+            <label for="food-amount">Amount</label>
+            <input type="number" id="food-amount" step="any" min="0.01" inputmode="decimal" required>
+          </p>
+          <p class="field food-picker__unit">
+            <label for="food-unit">Measure</label>
+            <select id="food-unit"></select>
+          </p>
+        </div>
+        <p class="food-picker__kcal" id="food-picker-kcal" aria-live="polite"></p>
+        <div class="card__actions">
+          <button type="submit" class="btn btn--primary" id="food-picker-submit">Add</button>
+          <button type="button" class="btn btn--ghost btn--danger" id="food-picker-remove" hidden>Remove</button>
+          <button type="button" class="btn btn--ghost" id="food-picker-cancel">Cancel</button>
+        </div>
+      </form>
+
+      <!-- A food the index does not have: from a label or a recipe. It is
+           remembered with the rest, so it comes back under Recent. -->
+      <form class="food-picker" id="food-custom" novalidate hidden>
+        <p class="food-picker__name">A food that isn't listed</p>
+        <p class="field">
+          <label for="food-custom-name">Name</label>
+          <input type="text" id="food-custom-name" maxlength="160" autocomplete="off" placeholder="Chili, homemade">
+        </p>
+        <div class="food-picker__row">
+          <p class="field">
+            <label for="food-custom-kcal">kcal per serving</label>
+            <input type="number" id="food-custom-kcal" step="any" min="0" inputmode="decimal">
+          </p>
+          <p class="field">
+            <label for="food-custom-servings">Servings</label>
+            <input type="number" id="food-custom-servings" step="any" min="0.01" value="1" inputmode="decimal">
+          </p>
+        </div>
+        <div class="card__actions">
+          <button type="submit" class="btn btn--primary">Add</button>
+          <button type="button" class="btn btn--ghost" id="food-custom-cancel">Cancel</button>
+        </div>
+      </form>
+
+      <ul class="food-items" id="food-items" aria-label="Foods on this day"></ul>
+      <p class="field__hint food-card__source">
+        Calories per 100 g from USDA FoodData Central, searched on this device.
+      </p>
+    </section>
 
     <form class="card" id="targets-form" novalidate>
       <h2 class="card__title">Targets</h2>
