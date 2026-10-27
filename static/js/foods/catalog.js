@@ -33,6 +33,22 @@ export function stem(word) {
 
 export const tokenize = (text) => normalize(text).split(' ').filter(Boolean).map(stem);
 
+/* USDA's category headings, where the food itself is named second:
+   "Fish, salmon, …", "Beverages, coffee, …", "Cheese, cheddar". */
+const CATEGORY_HEADS = new Set([
+  'fish', 'crustacean', 'mollusk', 'beverage', 'cheese', 'spice', 'oil', 'soup', 'snack',
+  'candy', 'cereal', 'nut', 'seed', 'sauce', 'sweetener', 'game meat', 'alcoholic beverage',
+]);
+
+/* The part before the first comma is what USDA files the food under
+   ("Bananas" in "Bananas, raw"): a match there is a match on the food. Under
+   a category heading, the segment after it counts as well. */
+function headOf(name) {
+  const [first = '', second = ''] = name.split(',');
+  const head = tokenize(first);
+  return CATEGORY_HEADS.has(head.join(' ')) ? [...head, ...tokenize(second)] : head;
+}
+
 export function buildCatalog(data) {
   const foods = (data && Array.isArray(data.foods) ? data.foods : []).map(([name, kcal100, portions]) => ({
     name,
@@ -40,9 +56,7 @@ export function buildCatalog(data) {
     portions: (portions || []).map(([label, grams]) => ({ label, grams })),
     words: tokenize(name),
     ...formOf(name, tokenize(name)),
-    // The part before the first comma is what USDA files the food under
-    // ("Bananas" in "Bananas, raw"): a match there is a match on the food.
-    head: tokenize(name.split(',')[0]),
+    head: headOf(name),
   }));
   return { foods, byName: new Map(foods.map((food) => [food.name, food])) };
 }
@@ -180,15 +194,11 @@ export function recentFoods(entries, { excludeDate = null, limit = 8 } = {}) {
     for (let at = entry.foods.length - 1; at >= 0; at -= 1) {
       const item = entry.foods[at];
       const key = `${item.name}\u0000${item.portion}`;
-      const known = seen.get(key);
-      if (known) known.count += 1;
-      else seen.set(key, { item, date: entry.date, count: 1 });
+      if (!seen.has(key)) seen.set(key, { item });
     }
   }
-  return [...seen.values()]
-    .sort((a, b) => b.date.localeCompare(a.date) || b.count - a.count)
-    .slice(0, limit)
-    .map((row) => row.item);
+  // Walked newest first, so the map's order already is the recency order.
+  return [...seen.values()].slice(0, limit).map((row) => row.item);
 }
 
 /* Recent foods matching a query, for showing above the index's results. */
