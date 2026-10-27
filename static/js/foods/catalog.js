@@ -52,8 +52,15 @@ export function buildCatalog(data) {
     words: tokenize(name),
     ...formOf(name, tokenize(name)),
     head: headOf(name),
+    headOffset: CATEGORY_HEADS.has(tokenize(name.split(',')[0]).join(' ')) ? tokenize(name.split(',')[0]).length : 0,
   }));
   lendDensities(foods);
+  // An entry measured only by weight sinks below its twin that USDA also
+  // weighed by the cup or spoon ("Chia seeds, dry, raw" below "Seeds, chia
+  // seeds, dried"), so the useful one is the one found first.
+  for (const food of foods) {
+    food.weightOnly = unitsFor(food).every((unit) => unit.group === 'weight') ? 2 : 0;
+  }
   return { foods, byName: new Map(foods.map((food) => [food.name, food])) };
 }
 
@@ -93,7 +100,8 @@ function lendDensities(foods) {
     const [head = [], variety = [], ...more] = segmentsOf(food.name);
     const entry = {
       food,
-      variety: new Set(variety),
+      // The heading's own word is no variety: "cashew nuts" and "macadamia nuts" differ.
+      variety: new Set(variety.filter((word) => !head.includes(word))),
       rest: new Set([...variety, ...more.flat()]),
       state: stateOf([...variety, ...more.flat()]),
       density: densityOf(food.portions),
@@ -109,12 +117,22 @@ function lendDensities(foods) {
     for (const entry of group) {
       if (entry.density) continue;
       const peers = lenders.filter((lender) => lender.state === entry.state);
+      // USDA leaves "raw" unsaid on a parent entry: "Nuts, almonds" is the
+      // raw almond that "Nuts, almonds, whole, raw" re-analyses.
+      const candidates = lenders.filter(
+        (lender) => lender.state === entry.state || (lender.state === '' && entry.state === 'raw'),
+      );
       let best = null;
-      for (const lender of peers) {
+      for (const lender of candidates) {
         const sameVariety = [...entry.variety].some((word) => lender.variety.has(word));
         if (!sameVariety) continue;
         const shared = [...entry.rest].filter((word) => lender.rest.has(word)).length;
-        const fit = shared / new Set([...entry.rest, ...lender.rest]).size;
+        // A parent naming the same variety and nothing the entry does not —
+        // "almonds" for "almonds, whole, raw" — is as close as it gets. (A
+        // bare heading names no variety, so "Oats" never qualifies.)
+        const parent = lender.rest.size > 0 && [...lender.rest].every((word) => entry.rest.has(word));
+        const overlap = shared / new Set([...entry.rest, ...lender.rest]).size;
+        const fit = parent ? Math.max(overlap, MIN_FIT) : overlap;
         if (fit >= MIN_FIT && (!best || fit > best.fit)) best = { lender, fit };
       }
       if (best) {
@@ -144,12 +162,16 @@ function score(food, terms) {
   for (const term of terms) {
     const at = food.words.findIndex((word) => word.startsWith(term));
     if (at === -1) return null;
-    total += at * 2;
+    // Under a category heading the food starts at its second segment:
+    // "chia" leads "Seeds, chia seeds" as much as it leads "Chia seeds".
+    total += Math.max(0, at - food.headOffset) * 2;
+    // …though a plain "Rice" still comes before "Snacks, rice cracker".
+    if (food.headOffset) total += 1.5;
     if (!food.words.includes(term)) total += 4;
     if (!food.head.some((word) => word.startsWith(term))) total += 6;
   }
   const askedProcessed = terms.some((term) => PROCESSED.has(term));
-  return total + food.name.length / 25 + food.plain + (askedProcessed ? 0 : food.processed);
+  return total + food.name.length / 25 + food.plain + food.weightOnly + (askedProcessed ? 0 : food.processed);
 }
 
 /* A nudge toward the everyday form of a food, unless the query asks for the

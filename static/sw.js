@@ -11,7 +11,7 @@
    behaviour — meant an installed app could sit on a stale cache indefinitely,
    because quitting it is something the person using it has to think to do. */
 
-const CACHE_VERSION = 'v7';
+const CACHE_VERSION = 'v8';
 const CACHE_NAME = `weight-tracker-${CACHE_VERSION}`;
 
 const PRECACHE = [
@@ -55,7 +55,10 @@ const PRECACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE))
+      // cache: 'reload' goes past the browser's HTTP cache, which a static
+      // host lets keep a file for minutes: an update must cache the files it
+      // was deployed with, not whatever the browser fetched last.
+      .then((cache) => cache.addAll(PRECACHE.map((path) => new Request(path, { cache: 'reload' }))))
       // Only once every file is cached: a worker that took over mid-download
       // would have nothing to serve for whatever had not arrived yet.
       .then(() => self.skipWaiting()),

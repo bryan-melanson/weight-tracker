@@ -82,6 +82,16 @@ describe('searchCatalog', () => {
     assert.deepEqual(names('  '), []);
   });
 
+  it('ranks an entry with measures above its weight-only twin', () => {
+    // A bare name has no variety to borrow a density by, so it stays
+    // weight-only, and the shorter name alone would put it first.
+    const twins = buildCatalog({ foods: [
+      ['Ketchup', 101, []],
+      ['Ketchup, restaurant', 97, [['tbsp', 17]]],
+    ] });
+    assert.equal(searchCatalog(twins, 'ketchup')[0].name, 'Ketchup, restaurant');
+  });
+
   it('respects the limit', () => {
     assert.equal(searchCatalog(catalog, 'raw', 2).length, 2);
   });
@@ -228,6 +238,18 @@ describe('borrowed densities', () => {
     assert.equal(byName('Peanut butter, creamy').borrowed.from, 'other peanut butter entries');
     assert.ok(tbspOf('Peanut butter, creamy').estimatedFrom);
     assert.equal(Math.round(tbspOf('Peanut butter, creamy').grams), 16);
+  });
+
+  it("borrows from a parent entry that leaves 'raw' unsaid", () => {
+    const nuts = buildCatalog({ foods: [
+      ['Nuts, almonds', 579, [['cup, whole', 143]]],
+      ['Nuts, almonds, whole, raw', 600, []],
+      ['Nuts, macadamia nuts, raw', 718, [['cup', 134]]],
+      ['Nuts, cashew nuts, raw', 553, []],
+    ] });
+    assert.equal(nuts.byName.get('Nuts, almonds, whole, raw').borrowed.from, 'Nuts, almonds');
+    // "nuts" is the heading, not a variety the two share.
+    assert.equal(nuts.byName.get('Nuts, cashew nuts, raw').borrowed, undefined);
   });
 
   it('will not borrow across varieties or from too few relatives', () => {

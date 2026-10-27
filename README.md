@@ -64,6 +64,12 @@ on the desktop and **Import CSV** on the phone.
 
 Pick one as the one you actually log into, or they will drift apart.
 
+### Which version is on the phone
+
+The Food card ends with "App version v8" (or whichever). It is the version
+the service worker cached, so after a deploy, open the app once — it reloads
+itself when the update lands — and the number changes.
+
 ### How safe the data on the phone is
 
 Safari's seven-day eviction of script-writable storage **does not apply to a
@@ -154,6 +160,10 @@ amount; the calories show as you type. The measure list is grouped:
   estimate came from. Anything less certain stays weight-only rather than
   guess: rolled oats do not borrow a cup from whole groats at twice the weight.
 - **Weight**: g, oz, lb and kg, always.
+
+Search puts an entry with cup or spoon measures ahead of a near-identical one
+that only has weights. USDA never weighed some foods by volume at all (chia
+seeds, rolled oats); those offer weights only.
 
 Switching measure keeps the same amount of food, so 1 cup of oats becomes 81 g
 rather than 1 g. A food opens on the measure and amount you last used for it,
@@ -360,7 +370,7 @@ node --test "tests/js/*.test.js"   # frontend: units, dates, metrics, backend
 python3 -m pytest --cov=tracker --cov-report=term-missing
 ```
 
-560 tests: 263 for the server and the food-index builder, 297 for the frontend.
+564 tests: 265 for the server and the food-index builder, 299 for the frontend.
 
 The frontend suite covers the ported validation, CSV and store logic against
 an in-memory stand-in for IndexedDB, so it needs no browser and no

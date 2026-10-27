@@ -49,3 +49,18 @@ class TestPageReplacesItself:
         """An update is not worth discarding a half-typed entry for."""
         assert "visibilitychange" in PWA
         assert "hidden" in PWA
+
+
+class TestVersionIsVisible:
+    def test_the_page_shows_the_cache_version(self):
+        """The Food card names the version, so "has my phone updated?" has an
+        answer on the screen; it must be the one the worker caches under."""
+        import re
+
+        cache = re.search(r"const CACHE_VERSION = '([^']+)';", SW).group(1)
+        html = (config.STATIC_DIR / "index.html").read_text()
+        shown = re.search(r'<span id="app-version">([^<]+)</span>', html).group(1)
+        assert shown == cache
+
+    def test_install_goes_past_the_http_cache(self):
+        assert "cache: 'reload'" in SW
