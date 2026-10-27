@@ -124,7 +124,8 @@
       </form>
 
       <!-- A food the index does not have: from a label or a recipe. It is
-           remembered with the rest, so it comes back under Recent. -->
+           kept in the days it is logged on, and search finds it again as
+           "My food" from then on. -->
       <form class="food-picker" id="food-custom" novalidate hidden>
         <p class="food-picker__name">A food that isn't listed</p>
         <p class="field">
@@ -143,7 +144,8 @@
         </div>
         <p class="field__hint food-picker__note">
           Next you choose how much you had — in servings, or in any weight or
-          volume if the calories are per a weight or a volume.
+          volume if the calories are per a weight or a volume. Once added, it
+          comes up in search as “My food”.
         </p>
         <div class="card__actions">
           <button type="submit" class="btn btn--primary">Next</button>
@@ -154,7 +156,7 @@
       <ul class="food-items" id="food-items" aria-label="Foods on this day"></ul>
       <p class="field__hint food-card__source">
         Calories per 100 g from USDA FoodData Central, searched on this device.
-        <span class="app-version">App version <span id="app-version">v8</span>.</span>
+        <span class="app-version">App version <span id="app-version">v9</span>.</span>
       </p>
     </section>
 

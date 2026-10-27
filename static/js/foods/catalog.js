@@ -427,14 +427,48 @@ export function recentFoods(entries, { excludeDate = null, limit = 8 } = {}) {
   return [...seen.values()].slice(0, limit).map((row) => row.item);
 }
 
+/* The foods you entered yourself — anything logged under a name the index
+   does not have — from the whole history, newest definition first. They
+   live in the days they were logged on, so they are backed up and exported
+   with them; there is no separate list to keep in step. */
+export function myFoods(entries, catalog, { exclude = [] } = {}) {
+  const seen = new Map();
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const foods = entries[index].foods || [];
+    for (let at = foods.length - 1; at >= 0; at -= 1) {
+      const item = foods[at];
+      if (seen.has(item.name) || exclude.includes(item.name)) continue;
+      if (catalog && catalog.byName.has(item.name)) continue;
+      seen.set(item.name, item);
+    }
+  }
+  return [...seen.values()].map((item) => ({ item, food: foodForItem(null, item) }));
+}
+
+/* What one of your foods is counted by: "450 kcal per serving",
+   "230 kcal per cup", "380 kcal / 100 g". */
+export function describeBasis(food, item) {
+  const unit = unitForItem(food, item);
+  if (unit.group === 'weight' && known(food.kcal100)) return `${Math.round(food.kcal100)} kcal / 100 g`;
+  return `${Math.round(unitKcal(food, unit))} kcal per ${unit.label}`;
+}
+
+const matches = (name, terms) => {
+  const words = tokenize(name);
+  return terms.every((term) => words.some((word) => word.startsWith(term)));
+};
+
+/* Your foods matching a query. */
+export function searchMine(mine, query) {
+  const terms = tokenize(query);
+  return terms.length ? mine.filter(({ item }) => matches(item.name, terms)) : [];
+}
+
 /* Recent foods matching a query, for showing above the index's results. */
 export function searchRecent(recent, query) {
   const terms = tokenize(query);
   if (!terms.length) return [];
-  return recent.filter((item) => {
-    const words = tokenize(item.name);
-    return terms.every((term) => words.some((word) => word.startsWith(term)));
-  });
+  return recent.filter((item) => matches(item.name, terms));
 }
 
 /* Standard measures read as plain quantities; "cup" and "serving" take a

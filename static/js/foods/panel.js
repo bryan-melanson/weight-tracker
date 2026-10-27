@@ -15,12 +15,15 @@ import {
   customItem,
   defaultChoice,
   describeAmount,
+  describeBasis,
   foodForItem,
   itemFor,
   itemKcal,
   lastLogged,
+  myFoods,
   recentFoods,
   searchCatalog,
+  searchMine,
   searchRecent,
   unitForItem,
   unitsFor,
@@ -29,6 +32,7 @@ import {
 const INDEX_URL = 'foods.json';
 const RESULT_LIMIT = 25;
 const RECENT_LIMIT = 8;
+const MINE_LIMIT = 8;
 const SEARCH_DELAY_MS = 90;
 
 /* What a day's hand-typed total becomes when its first food is added, so
@@ -149,6 +153,15 @@ export function mountFoodPanel({ context, save, setStatus }) {
     }, tag);
   }
 
+  /* One of your own foods: opens the picker on the measure and amount it
+     was last logged with, like any food from the index. */
+  function myFoodButton({ food, item }) {
+    return resultButton(item.name, describeBasis(food, item), () => {
+      const { unit, amount } = defaultChoice(food, item);
+      showPicker(food, unit, amount);
+    }, 'My food');
+  }
+
   function catalogButton(food) {
     return resultButton(food.name, `${fmtInt(food.kcal100)} kcal / 100 g`, () => openPicker(food));
   }
@@ -179,12 +192,17 @@ export function mountFoodPanel({ context, save, setStatus }) {
       return;
     }
 
+    // Your own foods first, from all of your history; then recent foods from
+    // the index; then the index.
+    const mine = searchMine(myFoods(entries, catalog, { exclude: [EARLIER_TOTAL] }), query).slice(0, MINE_LIMIT);
+    const indexedRecent = recentHits.filter((item) => catalog.byName.has(item.name));
     const hits = searchCatalog(catalog, query, RESULT_LIMIT);
-    nodes.note.textContent = hits.length || recentHits.length
+    nodes.note.textContent = hits.length || indexedRecent.length || mine.length
       ? ''
       : `Nothing matches “${query}”. Try fewer or shorter words, or add it as a food that isn't listed.`;
     nodes.results.replaceChildren(
-      ...recentHits.map((item) => recentButton(item, 'Recent')),
+      ...mine.map(myFoodButton),
+      ...indexedRecent.map((item) => recentButton(item, 'Recent')),
       ...hits.map(catalogButton),
     );
   }

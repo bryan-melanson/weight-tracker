@@ -12,12 +12,15 @@ import {
   customItem,
   defaultChoice,
   describeAmount,
+  describeBasis,
   foodForItem,
   itemFor,
   itemKcal,
+  myFoods,
   normalize,
   recentFoods,
   searchCatalog,
+  searchMine,
   searchRecent,
   stem,
   unitForItem,
@@ -350,6 +353,52 @@ describe('recentFoods', () => {
 
   it('filters by query', () => {
     assert.deepEqual(searchRecent(recentFoods(entries), 'chil').map((item) => item.name), ['Chili, homemade']);
+  });
+});
+
+describe('my foods', () => {
+  const chili = customFood('Chili, homemade', 450, 'serving');
+  const soup = customFood('Lentil soup', 230, 'cup');
+  const bar = customFood('Granola bar, homemade', 420, '100g');
+  const entries = [
+    { date: '2026-09-01', foods: [itemFor(chili.food, chili.unit, 1), itemFor(bar.food, bar.unit, 40)] },
+    { date: '2026-10-01', foods: [itemFor(food('Bananas, raw'), GRAM, 120)] },
+    { date: '2026-10-20', foods: [itemFor(soup.food, soup.unit, 1.5), customItem('Calories logged before the food list', 900, 1, '')] },
+  ];
+  const mine = myFoods(entries, catalog, { exclude: ['Calories logged before the food list'] });
+
+  it('collects foods the index does not have, from all of history, newest first', () => {
+    assert.deepEqual(mine.map(({ item }) => item.name), ['Lentil soup', 'Granola bar, homemade', 'Chili, homemade']);
+  });
+
+  it('keeps the newest definition of a food entered twice', () => {
+    const redefined = customFood('Chili, homemade', 500, 'serving');
+    const later = [...entries, { date: '2026-10-25', foods: [itemFor(redefined.food, redefined.unit, 1)] }];
+    const [first] = myFoods(later, catalog);
+    assert.equal(first.item.unit_kcal, 500);
+  });
+
+  it('is searched by name', () => {
+    assert.deepEqual(searchMine(mine, 'chil').map(({ item }) => item.name), ['Chili, homemade']);
+    assert.deepEqual(searchMine(mine, 'homemade').length, 2);
+    assert.deepEqual(searchMine(mine, ''), []);
+  });
+
+  it('says what each is counted by', () => {
+    const basis = Object.fromEntries(mine.map(({ food: mineFood, item }) => [item.name, describeBasis(mineFood, item)]));
+    assert.deepEqual(basis, {
+      'Lentil soup': '230 kcal per cup',
+      'Granola bar, homemade': '420 kcal / 100 g',
+      'Chili, homemade': '450 kcal per serving',
+    });
+  });
+
+  it('opens on the measure and amount it was last logged with, any measure of its kind on offer', () => {
+    const [soupMine] = mine;
+    const choice = defaultChoice(soupMine.food, soupMine.item);
+    assert.equal(choice.unit.label, 'cup');
+    assert.equal(choice.amount, 1.5);
+    assert.ok(unitsFor(soupMine.food).some((unit) => unit.label === 'tbsp'));
   });
 });
 

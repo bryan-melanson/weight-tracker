@@ -66,7 +66,7 @@ Pick one as the one you actually log into, or they will drift apart.
 
 ### Which version is on the phone
 
-The Food card ends with "App version v8" (or whichever). It is the version
+The Food card ends with "App version v9" (or whichever). It is the version
 the service worker cached, so after a deploy, open the app once — it reloads
 itself when the update lands — and the number changes.
 
@@ -174,8 +174,13 @@ or else a medium one, or else 100 g.
 - **A food that isn't listed** — a recipe, or something off a label — takes a
   name and its calories per serving, per 100 g, per oz, or per cup, tbsp or
   tsp. You then pick how much you had like any other food: in servings, or
-  in any weight or any volume, matching what the calories were given per. It
-  then shows up under Recent like any other.
+  in any weight or any volume, matching what the calories were given per.
+  From then on search finds it, tagged **My food** and listed above USDA's
+  matches, and opens it on the amount you last had. Your foods are found from
+  your whole history, not just recent days. They live in the days you logged
+  them on — no separate list — so they are in the export and the backup
+  already; the newest way you entered one is the one search offers, and a
+  food stops being offered only if every day it was logged on is deleted.
 - **Tap a food on the day** to change its amount or measure, or remove it.
 
 A running total against the day's target, with what is left, sits at the top.
@@ -370,7 +375,7 @@ node --test "tests/js/*.test.js"   # frontend: units, dates, metrics, backend
 python3 -m pytest --cov=tracker --cov-report=term-missing
 ```
 
-564 tests: 265 for the server and the food-index builder, 299 for the frontend.
+569 tests: 265 for the server and the food-index builder, 304 for the frontend.
 
 The frontend suite covers the ported validation, CSV and store logic against
 an in-memory stand-in for IndexedDB, so it needs no browser and no
