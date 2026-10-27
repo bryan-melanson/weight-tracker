@@ -142,15 +142,30 @@ at night.
 
 **Food** is the day's food log, beside the form and following its date. Search
 about 8,000 foods by name — banana, oats, cheddar — pick one, and give an
-amount in any measure USDA weighed for it ("1 medium", "1 cup, chopped") or in
-grams or ounces; the calories show as you type. Switching measure keeps the
-same amount of food, so 1 cup of oats becomes 81 g rather than 1 g.
+amount; the calories show as you type. The measure list is grouped:
+
+- **Portions** USDA sized for that food: "medium", "slice", "large".
+- **Volume**: USDA's own ("cup, chopped"), plus cup, tbsp, tsp, fl oz and ml
+  worked out from the food's density wherever USDA weighed any volume of it.
+  Where it weighed none, a food can borrow the density of a close relative
+  (white rice from white rice), or of its family when at least three
+  relatives agree within 15% (creamy peanut butter from the other peanut
+  butters). Those measures are marked *est.*, and the picker says where the
+  estimate came from. Anything less certain stays weight-only rather than
+  guess: rolled oats do not borrow a cup from whole groats at twice the weight.
+- **Weight**: g, oz, lb and kg, always.
+
+Switching measure keeps the same amount of food, so 1 cup of oats becomes 81 g
+rather than 1 g. A food opens on the measure and amount you last used for it,
+or else a medium one, or else 100 g.
 
 - **Recent** foods are listed under the search box when it is empty, and come
   first in results. One tap logs one again exactly as last time.
 - **A food that isn't listed** — a recipe, or something off a label — takes a
-  name, the calories in one serving, and how many servings. It then shows up
-  under Recent like any other.
+  name and its calories per serving, per 100 g, per oz, or per cup, tbsp or
+  tsp. You then pick how much you had like any other food: in servings, or
+  in any weight or any volume, matching what the calories were given per. It
+  then shows up under Recent like any other.
 - **Tap a food on the day** to change its amount or measure, or remove it.
 
 A running total against the day's target, with what is left, sits at the top.
@@ -345,7 +360,7 @@ node --test "tests/js/*.test.js"   # frontend: units, dates, metrics, backend
 python3 -m pytest --cov=tracker --cov-report=term-missing
 ```
 
-541 tests: 263 for the server and the food-index builder, 278 for the frontend.
+560 tests: 263 for the server and the food-index builder, 297 for the frontend.
 
 The frontend suite covers the ported validation, CSV and store logic against
 an in-memory stand-in for IndexedDB, so it needs no browser and no

@@ -7,13 +7,18 @@
 
 import { fmtInt } from '../format.js';
 import {
+  CUSTOM_BASES,
+  GROUP_LABELS,
   buildCatalog,
+  convertAmount,
+  customFood,
   customItem,
   defaultChoice,
   describeAmount,
   foodForItem,
   itemFor,
   itemKcal,
+  lastLogged,
   recentFoods,
   searchCatalog,
   searchRecent,
@@ -83,12 +88,13 @@ export function mountFoodPanel({ context, save, setStatus }) {
     amount: $('#food-amount'),
     unit: $('#food-unit'),
     pickerKcal: $('#food-picker-kcal'),
+    pickerNote: $('#food-picker-note'),
     submit: $('#food-picker-submit'),
     remove: $('#food-picker-remove'),
     custom: $('#food-custom'),
     customName: $('#food-custom-name'),
     customKcal: $('#food-custom-kcal'),
-    customServings: $('#food-custom-servings'),
+    customBasis: $('#food-custom-basis'),
     items: $('#food-items'),
   };
 
@@ -190,9 +196,38 @@ export function mountFoodPanel({ context, save, setStatus }) {
 
   /* --- the amount picker ---------------------------------------------- */
 
+  /* "medium · 118 g", "tbsp · 16 g"; a weight or an unweighed measure is
+     just its name. */
   function unitOptionText(unit) {
-    if (unit.label === 'g' || unit.label === 'oz' || !unit.grams) return unit.label;
-    return `${unit.label} · ${fmtInt(unit.grams)} g`;
+    if (unit.group === 'weight' || !unit.grams) return unit.label;
+    const grams = unit.grams < 10 ? Math.round(unit.grams * 10) / 10 : Math.round(unit.grams);
+    return `${unit.label} · ${grams} g${unit.estimatedFrom ? ' (est.)' : ''}`;
+  }
+
+  /* The measures, under Portions / Volume / Weight. An option's value is its
+     index in `units`, which is what the rest of the picker works with. */
+  function unitOptions(units) {
+    const groups = new Map();
+    units.forEach((unit, position) => {
+      const option = el('option', null, unitOptionText(unit));
+      option.value = String(position);
+      if (!groups.has(unit.group)) groups.set(unit.group, []);
+      groups.get(unit.group).push(option);
+    });
+    if (groups.size === 1) return [...groups.values()][0];
+    return [...groups].map(([group, options]) => {
+      const node = el('optgroup');
+      node.label = GROUP_LABELS[group] || group;
+      node.append(...options);
+      return node;
+    });
+  }
+
+  function estimateNote(units) {
+    const estimated = units.find((unit) => unit.estimatedFrom);
+    return estimated
+      ? `USDA did not weigh a cup or spoon of this food; those weights are estimated from ${estimated.estimatedFrom.startsWith('other ') ? estimated.estimatedFrom : `“${estimated.estimatedFrom}”`}.`
+      : '';
   }
 
   function pickerItem() {
@@ -214,14 +249,10 @@ export function mountFoodPanel({ context, save, setStatus }) {
     const units = unitsFor(food);
     picking = { food, units, index };
     nodes.pickerName.textContent = food.name;
-    nodes.unit.replaceChildren(
-      ...units.map((option, position) => {
-        const node = el('option', null, unitOptionText(option));
-        node.value = String(position);
-        return node;
-      }),
-    );
-    nodes.unit.value = String(Math.max(0, units.indexOf(unit)));
+    nodes.unit.replaceChildren(...unitOptions(units));
+    nodes.pickerNote.textContent = estimateNote(units);
+    // By label: unitsFor builds fresh objects on every call.
+    nodes.unit.value = String(Math.max(0, units.findIndex((option) => option.label === unit.label)));
     nodes.unit.dataset.previous = nodes.unit.value;
     nodes.amount.value = String(amount);
     nodes.submit.textContent = index === null ? 'Add' : 'Save';
@@ -233,8 +264,10 @@ export function mountFoodPanel({ context, save, setStatus }) {
     nodes.amount.select();
   }
 
+  /* Opens on the measure and amount last used for this food, if any. */
   function openPicker(food) {
-    const { unit, amount } = defaultChoice(food);
+    const recent = recentFoods(context().entries, { limit: 200 });
+    const { unit, amount } = defaultChoice(food, lastLogged(recent, food.name));
     showPicker(food, unit, amount);
   }
 
@@ -266,10 +299,8 @@ export function mountFoodPanel({ context, save, setStatus }) {
     const previous = units[Number(event.target.dataset.previous)];
     const next = units[Number(event.target.value)];
     const amount = Number(nodes.amount.value);
-    if (previous && next && previous.grams && next.grams && amount > 0) {
-      const converted = (amount * previous.grams) / next.grams;
-      nodes.amount.value = String(Math.round(converted * 100) / 100 || 0.01);
-    }
+    const converted = previous && next && amount > 0 ? convertAmount(amount, previous, next) : null;
+    if (converted !== null) nodes.amount.value = String(Math.round(converted * 100) / 100 || 0.01);
     event.target.dataset.previous = event.target.value;
     updatePickerKcal();
   }
@@ -303,21 +334,23 @@ export function mountFoodPanel({ context, save, setStatus }) {
     nodes.custom.hidden = false;
     nodes.customName.value = nodes.query.value.trim();
     nodes.customKcal.value = '';
-    nodes.customServings.value = '1';
+    nodes.customBasis.value = CUSTOM_BASES[0].key;
     (nodes.customName.value ? nodes.customKcal : nodes.customName).focus();
   }
 
-  async function onCustomSubmit(event) {
+  /* The food is defined by its energy per one basis; how much was eaten is
+     then picked like any other food's, in whatever measures that basis
+     allows. */
+  function onCustomSubmit(event) {
     event.preventDefault();
     const name = nodes.customName.value.trim();
     const kcal = Number(nodes.customKcal.value);
-    const servings = Number(nodes.customServings.value);
     if (!name) { setStatus('Give the food a name.', 'error'); nodes.customName.focus(); return; }
     if (nodes.customKcal.value === '' || !(kcal >= 0)) {
-      setStatus('Enter the calories in one serving.', 'error'); nodes.customKcal.focus(); return;
+      setStatus('Enter its calories.', 'error'); nodes.customKcal.focus(); return;
     }
-    if (!(servings > 0)) { setStatus('Enter how many servings.', 'error'); nodes.customServings.focus(); return; }
-    if (await addItem(customItem(name, kcal, servings))) closeForms();
+    const { food, unit, amount } = customFood(name, kcal, nodes.customBasis.value);
+    showPicker(food, unit, amount);
   }
 
   /* --- the day -------------------------------------------------------- */
@@ -380,6 +413,13 @@ export function mountFoodPanel({ context, save, setStatus }) {
   nodes.query.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') { nodes.query.value = ''; showResults(); }
   });
+  nodes.customBasis.replaceChildren(
+    ...CUSTOM_BASES.map((basis) => {
+      const option = el('option', null, basis.label);
+      option.value = basis.key;
+      return option;
+    }),
+  );
   nodes.customOpen.addEventListener('click', openCustom);
   nodes.picker.addEventListener('submit', onPickerSubmit);
   nodes.amount.addEventListener('input', updatePickerKcal);

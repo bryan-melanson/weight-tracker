@@ -2,9 +2,13 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  CUSTOM_BASES,
   GRAM,
   OUNCE,
   buildCatalog,
+  canonicalLabel,
+  convertAmount,
+  customFood,
   customItem,
   defaultChoice,
   describeAmount,
@@ -83,37 +87,198 @@ describe('searchCatalog', () => {
   });
 });
 
+const labels = (food_) => unitsFor(food_).map((unit) => unit.label);
+
 describe('measures', () => {
-  it("offers USDA's measures, then grams and ounces", () => {
-    assert.deepEqual(unitsFor(food('Bananas, raw')).map((unit) => unit.label), [
-      'cup, mashed', 'medium (7" to 7-7/8" long)', 'g', 'oz',
+  it('groups portions, then volumes, then weights', () => {
+    assert.deepEqual(labels(food('Bananas, raw')), [
+      'medium (7" to 7-7/8" long)', 'cup, mashed', 'tbsp', 'tsp', 'fl oz', 'ml', 'g', 'oz', 'lb', 'kg',
     ]);
+    assert.deepEqual(
+      [...new Set(unitsFor(food('Bananas, raw')).map((unit) => unit.group))],
+      ['portion', 'volume', 'weight'],
+    );
+  });
+
+  it('works spoons out from a weighed cup', () => {
+    const tbsp = unitsFor(food('Blueberries, raw')).find((unit) => unit.label === 'tbsp');
+    assert.equal(tbsp.grams, 9.25); // 148 g per cup / 16
+    assert.equal(tbsp.estimatedFrom, undefined);
   });
 
   it('does not repeat a measure USDA already has', () => {
-    assert.deepEqual(unitsFor(food('Fish, salmon, Atlantic, farmed, raw')).map((unit) => unit.label), ['oz', 'g']);
+    assert.deepEqual(labels(food('Fish, salmon, Atlantic, farmed, raw')), ['oz', 'g', 'lb', 'kg']);
+  });
+
+  it('spells the spoons one way', () => {
+    assert.equal(canonicalLabel('tablespoon'), 'tbsp');
+    assert.equal(canonicalLabel('teaspoons, packed'), 'tsp, packed');
+    assert.equal(canonicalLabel('cups'), 'cup');
+    const milk = buildCatalog({ foods: [['Milk', 60, [['cup', 244], ['tablespoon', 15], ['tbsp', 15]]]] }).foods[0];
+    assert.deepEqual(labels(milk).filter((label) => label === 'tbsp'), ['tbsp']);
+  });
+
+  it('never starts on an estimated measure', () => {
+    const pb = buildCatalog({ foods: [
+      ['Peanut butter, chunk style', 589, [['tbsp', 16]]],
+      ['Peanut butter, smooth style', 597, [['tbsp', 16]]],
+      ['Peanut butter, reduced fat', 520, [['tbsp', 17]]],
+      ['Peanut butter, creamy', 589, []],
+    ] }).byName.get('Peanut butter, creamy');
+    assert.ok(unitsFor(pb)[0].estimatedFrom);
+    assert.deepEqual(defaultChoice(pb), { unit: GRAM, amount: 100 });
+  });
+
+  it('keeps a small measure precise', () => {
+    const { food: soup } = customFood('Soup', 230, 'cup');
+    const ml = unitsFor(soup).find((unit) => unit.label === 'ml');
+    assert.equal(itemKcal(itemFor(soup, ml, 354.88)), 345);
+  });
+
+  it('offers no volume without a density to go by', () => {
+    assert.deepEqual(labels(food('Egg, yolk, dried')), ['g', 'oz', 'lb', 'kg']);
+  });
+
+  it('starts from a medium one when USDA sized it', () => {
+    const banana = buildCatalog({ foods: [['Bananas, raw', 89, [['extra small', 81], ['medium', 118], ['large', 136]]]] }).foods[0];
+    assert.equal(defaultChoice(banana).unit.label, 'medium');
   });
 
   it('starts from one of the first measure, or 100 g', () => {
-    assert.deepEqual(defaultChoice(food('Bananas, raw')), { unit: food('Bananas, raw').portions[0], amount: 1 });
+    assert.equal(defaultChoice(food('Bananas, raw')).unit.label, 'medium (7" to 7-7/8" long)');
+    assert.equal(defaultChoice(food('Bananas, raw')).amount, 1);
     assert.deepEqual(defaultChoice(food('Egg, yolk, dried')), { unit: GRAM, amount: 100 });
   });
 
+  it('starts from the measure and amount last used', () => {
+    const last = itemFor(food('Bananas, raw'), GRAM, 150);
+    const choice = defaultChoice(food('Bananas, raw'), last);
+    assert.equal(choice.unit.label, 'g');
+    assert.equal(choice.amount, 150);
+  });
+
   it('builds an item from a measure and an amount', () => {
-    const item = itemFor(food('Bananas, raw'), food('Bananas, raw').portions[1], 2);
+    const medium = unitsFor(food('Bananas, raw'))[0];
+    const item = itemFor(food('Bananas, raw'), medium, 2);
     assert.deepEqual(item, {
       name: 'Bananas, raw', portion: 'medium (7" to 7-7/8" long)', quantity: 2, unit_kcal: 105.02, unit_grams: 118,
     });
     assert.equal(itemKcal(item), 210);
   });
 
-  it('weighs grams and ounces', () => {
-    assert.equal(itemKcal(itemFor(food('Bananas, raw'), GRAM, 150)), 134);
-    assert.equal(itemKcal(itemFor(food('Bananas, raw'), OUNCE, 1)), 25);
+  it('weighs grams, ounces, pounds and kilograms', () => {
+    const banana = food('Bananas, raw');
+    const unit = (label) => unitsFor(banana).find((option) => option.label === label);
+    assert.equal(itemKcal(itemFor(banana, unit('g'), 150)), 134);
+    assert.equal(itemKcal(itemFor(banana, unit('oz'), 1)), 25);
+    assert.equal(itemKcal(itemFor(banana, unit('lb'), 1)), 404);
+    assert.equal(itemKcal(itemFor(banana, unit('kg'), 0.5)), 445);
+  });
+});
+
+describe('convertAmount', () => {
+  const units = unitsFor(food('Blueberries, raw'));
+  const unit = (label) => units.find((option) => option.label === label);
+
+  it('keeps the same amount of food across measures', () => {
+    assert.equal(convertAmount(1, unit('cup'), unit('g')), 148);
+    assert.equal(convertAmount(148, unit('g'), unit('cup')), 1);
+    assert.equal(Math.round(convertAmount(1, unit('cup'), unit('tbsp'))), 16);
+  });
+
+  it('converts volumes with no weight behind them', () => {
+    const { food: soup } = customFood('Soup', 120, 'cup');
+    const volumes = unitsFor(soup);
+    const cup = volumes.find((option) => option.label === 'cup');
+    const tbsp = volumes.find((option) => option.label === 'tbsp');
+    assert.equal(Math.round(convertAmount(1, cup, tbsp)), 16);
+  });
+
+  it('refuses to compare a serving with a weight', () => {
+    const { food: chili, unit: serving } = customFood('Chili', 450, 'serving');
+    assert.equal(convertAmount(1, serving, GRAM), null);
+    assert.deepEqual(labels(chili), ['serving']);
+  });
+});
+
+describe('borrowed densities', () => {
+  const family = buildCatalog({
+    foods: [
+      ['Peanut butter, chunk style, with salt', 589, [['tbsp', 16]]],
+      ['Peanut butter, smooth style, with salt', 597, [['tablespoon', 16], ['cup', 258]]],
+      ['Peanut butter, smooth, reduced fat', 520, [['tbsp', 17]]],
+      ['Peanut butter, creamy', 589, []],
+      ['Rice, white, long-grain, regular, raw, unenriched', 365, [['cup', 185]]],
+      ['Rice, white, long-grain, regular, cooked, unenriched', 130, [['cup', 158]]],
+      ['Rice, white, long grain, unenriched, raw', 360, []],
+      ['Rice, brown, medium-grain, cooked', 112, []],
+      ['Oats', 389, [['cup', 156]]],
+      ['Oats, whole grain, rolled, old fashioned', 379, []],
+    ],
+  });
+  const byName = (name) => family.byName.get(name);
+  const tbspOf = (name) => unitsFor(byName(name)).find((unit) => unit.label === 'tbsp');
+
+  it('borrows from a close relative in the same state', () => {
+    assert.equal(byName('Rice, white, long grain, unenriched, raw').borrowed.from,
+      'Rice, white, long-grain, regular, raw, unenriched');
+  });
+
+  it('falls back to a family that agrees', () => {
+    assert.equal(byName('Peanut butter, creamy').borrowed.from, 'other peanut butter entries');
+    assert.ok(tbspOf('Peanut butter, creamy').estimatedFrom);
+    assert.equal(Math.round(tbspOf('Peanut butter, creamy').grams), 16);
+  });
+
+  it('will not borrow across varieties or from too few relatives', () => {
+    assert.equal(byName('Rice, brown, medium-grain, cooked').borrowed, undefined);
+    assert.equal(byName('Oats, whole grain, rolled, old fashioned').borrowed, undefined);
+    assert.equal(tbspOf('Oats, whole grain, rolled, old fashioned'), undefined);
+  });
+});
+
+describe('foods that are not listed', () => {
+  it('offers a basis for every kind of label', () => {
+    assert.deepEqual(CUSTOM_BASES.map((basis) => basis.key), ['serving', '100g', 'oz', 'cup', 'tbsp', 'tsp']);
+  });
+
+  it('per 100 g can be logged in any weight', () => {
+    const { food: bar, unit, amount } = customFood('Granola bar', 450, '100g');
+    assert.equal(unit.label, 'g');
+    assert.equal(amount, 100);
+    assert.deepEqual(labels(bar), ['g', 'oz', 'lb', 'kg']);
+    assert.equal(itemKcal(itemFor(bar, unit, 40)), 180);
+  });
+
+  it('per ounce becomes energy per gram', () => {
+    const { food: jerky, unit } = customFood('Jerky', 80, 'oz');
+    assert.equal(unit.label, 'oz');
+    assert.equal(itemKcal(itemFor(jerky, unit, 2)), 160);
+  });
+
+  it('per volume can be logged in any volume', () => {
+    const { food: soup, unit } = customFood('Soup', 120, 'cup');
+    assert.deepEqual(labels(soup), ['cup', 'tbsp', 'tsp', 'fl oz', 'ml']);
+    assert.equal(itemKcal(itemFor(soup, unit, 1.5)), 180);
+    const tbsp = unitsFor(soup).find((option) => option.label === 'tbsp');
+    assert.equal(itemKcal(itemFor(soup, tbsp, 16)), 120);
   });
 });
 
 describe('logged items as foods again', () => {
+  it('rebuilds a volume-only food from a logged volume', () => {
+    const { food: soup, unit } = customFood('Soup', 120, 'cup');
+    const again = foodForItem(catalog, itemFor(soup, unit, 1));
+    const tbsp = unitsFor(again).find((option) => option.label === 'tbsp');
+    assert.equal(itemKcal(itemFor(again, tbsp, 16)), 120);
+  });
+
+  it('matches an item logged under the long spelling of a spoon', () => {
+    const again = foodForItem(catalog, { name: 'Blueberries, raw', portion: 'tablespoon', quantity: 2, unit_kcal: 5.27, unit_grams: 9.25 });
+    assert.equal(again, food('Blueberries, raw'));
+    assert.equal(unitForItem(again, { portion: 'tablespoon' }).label, 'tbsp');
+  });
+
   it('finds an indexed food with all its measures', () => {
     const item = itemFor(food('Bananas, raw'), GRAM, 150);
     const again = foodForItem(catalog, item);
@@ -133,6 +298,7 @@ describe('logged items as foods again', () => {
     const again = foodForItem(null, item);
     const unit = unitForItem(again, item);
     assert.equal(unit.label, 'cup, mashed');
+    assert.ok(unitsFor(again).some((option) => option.label === 'tbsp'), 'a weighed cup still gives spoons');
     assert.equal(itemKcal(itemFor(again, unit, 1)), itemKcal(item));
     assert.ok(unitsFor(again).some((option) => option.label === 'g'), 'a weighed item can switch to grams');
   });
@@ -172,6 +338,9 @@ describe('describeAmount', () => {
     assert.equal(describeAmount({ quantity: 1, portion: 'serving' }), '1 serving');
     assert.equal(describeAmount({ quantity: 2, portion: 'serving' }), '2 servings');
     assert.equal(describeAmount({ quantity: 1, portion: '' }), '');
-    assert.equal(describeAmount({ quantity: 0.333333, portion: 'cup' }), '0.33 × cup');
+    assert.equal(describeAmount({ quantity: 0.333333, portion: 'cup' }), '0.33 cups');
+    assert.equal(describeAmount({ quantity: 1, portion: 'cup' }), '1 cup');
+    assert.equal(describeAmount({ quantity: 2, portion: 'tbsp' }), '2 tbsp');
+    assert.equal(describeAmount({ quantity: 0.5, portion: 'lb' }), '0.5 lb');
   });
 });

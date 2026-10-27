@@ -115,6 +115,7 @@
           </p>
         </div>
         <p class="food-picker__kcal" id="food-picker-kcal" aria-live="polite"></p>
+        <p class="field__hint food-picker__note" id="food-picker-note"></p>
         <div class="card__actions">
           <button type="submit" class="btn btn--primary" id="food-picker-submit">Add</button>
           <button type="button" class="btn btn--ghost btn--danger" id="food-picker-remove" hidden>Remove</button>
@@ -132,16 +133,20 @@
         </p>
         <div class="food-picker__row">
           <p class="field">
-            <label for="food-custom-kcal">kcal per serving</label>
+            <label for="food-custom-kcal">Calories</label>
             <input type="number" id="food-custom-kcal" step="any" min="0" inputmode="decimal">
           </p>
           <p class="field">
-            <label for="food-custom-servings">Servings</label>
-            <input type="number" id="food-custom-servings" step="any" min="0.01" value="1" inputmode="decimal">
+            <label for="food-custom-basis">per</label>
+            <select id="food-custom-basis"></select>
           </p>
         </div>
+        <p class="field__hint food-picker__note">
+          Next you choose how much you had — in servings, or in any weight or
+          volume if the calories are per a weight or a volume.
+        </p>
         <div class="card__actions">
-          <button type="submit" class="btn btn--primary">Add</button>
+          <button type="submit" class="btn btn--primary">Next</button>
           <button type="button" class="btn btn--ghost" id="food-custom-cancel">Cancel</button>
         </div>
       </form>

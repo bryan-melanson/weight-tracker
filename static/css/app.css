@@ -175,6 +175,8 @@ body {
 .food-picker__name { margin: 0; font-weight: 600; line-height: 1.35; }
 .food-picker__row { display: grid; grid-template-columns: minmax(80px, 1fr) minmax(0, 2fr); gap: 10px; }
 .food-picker__kcal { margin: 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.food-picker__note { margin: -4px 0 0; font-size: 12px; line-height: 1.45; }
+.food-picker__note:empty { display: none; }
 
 .food-items { display: flex; flex-direction: column; }
 .food-item { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--grid); }
