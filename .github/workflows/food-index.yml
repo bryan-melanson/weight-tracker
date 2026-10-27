@@ -27,13 +27,20 @@ jobs:
         with:
           python-version: '3.12'
       - name: Build the index
-        run: python3 tools/build_food_index.py
+        run: |
+          python3 tools/build_food_index.py 2> build.log
+          echo "::notice title=food index::$(tail -1 build.log)"
       - name: Check it
         run: |
           python3 -m pip install --disable-pip-version-check pytest
-          python3 -m pytest -q tests/test_food_index.py
+          python3 -m pytest -q -rs tests/test_food_index.py
+      # Annotations are readable through the API where the logs may not be,
+      # so a failure here reports its last few traced commands as one.
       - name: Commit it if it changed
         run: |
+          exec 2> trace.log
+          trap 'echo "::error title=commit step::$(tail -6 trace.log | tr "\n" " ")"' ERR
+          set -x
           git add static/data/foods.json
           if git diff --cached --quiet; then
             echo "food index unchanged"
