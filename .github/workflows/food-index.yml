@@ -41,5 +41,9 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "data: rebuild food index from USDA FoodData Central"
-          git push
+          git commit -q -m "data: rebuild food index from USDA FoodData Central"
+          # Surface a failed push as an annotation, readable without the logs.
+          if ! output=$(git push origin "HEAD:${GITHUB_REF_NAME}" 2>&1); then
+            echo "::error title=push failed::$(echo "$output" | tail -5 | tr '\n' ' ')"
+            exit 1
+          fi
