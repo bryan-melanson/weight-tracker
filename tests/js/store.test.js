@@ -188,7 +188,7 @@ describe('local api', () => {
 
   it('exports what was imported', async () => {
     const api = newApi();
-    const csv = 'date,weight_kg,calories,calories_burned,calorie_target,note\n2026-10-01,80.5,1950,420,2000,felt good\n';
+    const csv = 'date,weight_kg,calories,calories_burned,calorie_target,note,foods\n2026-10-01,80.5,1950,420,2000,felt good,\n';
     await api.importCsv(csv);
     assert.equal(await api.exportCsv(), csv);
   });

@@ -101,7 +101,7 @@ class TestExportImport:
         status, payload = call(store, "GET", "/api/export.csv")
         assert status == 200
         lines = payload["csv"].strip().splitlines()
-        assert lines[0] == "date,weight_kg,calories,calories_burned,calorie_target,note"
+        assert lines[0] == "date,weight_kg,calories,calories_burned,calorie_target,note,foods"
         assert lines[1].startswith("2026-10-01,80.0,2100,450,2000")
 
     def test_import_round_trips(self, store):

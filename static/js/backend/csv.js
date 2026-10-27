@@ -3,9 +3,9 @@
    free; here it is written out, so the two backends read and write the same
    files and an export from either imports into the other. */
 
-import { ValidationError, validateDate, validateEntryPatch } from './validate.js';
+import { ValidationError, encodeFoods, validateDate, validateEntryPatch } from './validate.js';
 
-export const CSV_COLUMNS = ['date', 'weight_kg', 'calories', 'calories_burned', 'calorie_target', 'note'];
+export const CSV_COLUMNS = ['date', 'weight_kg', 'calories', 'calories_burned', 'calorie_target', 'note', 'foods'];
 
 const NEEDS_QUOTES = /[",\r\n]/;
 
@@ -22,6 +22,9 @@ function cell(entry, column) {
   const value = entry[column];
   if (value === null || value === undefined) return '';
   if (column === 'weight_kg' && Number.isInteger(value)) return `${value}.0`;
+  // The food log travels as one JSON cell, so a day stays one row and a file
+  // without the column still imports.
+  if (column === 'foods') return quote(encodeFoods(value));
   return quote(value);
 }
 

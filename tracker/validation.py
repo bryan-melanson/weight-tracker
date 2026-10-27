@@ -4,9 +4,10 @@ Nothing reaches the database without passing through here. Every function is
 pure: it returns a new normalized value and never mutates its argument.
 """
 
+import json
 from collections.abc import Mapping
 from datetime import date as date_cls
-from math import isfinite
+from math import floor, isfinite
 
 from . import config
 
@@ -20,6 +21,7 @@ FIELD_LABELS = {
     "calories_burned": "Calories burned",
     "calorie_target": "Calorie target",
     "note": "Note",
+    "foods": "Food log",
     "unit": "Unit",
     "default_calorie_target": "Daily calorie target",
     "goal_weight_kg": "Goal weight in kilograms",
@@ -113,6 +115,111 @@ def _validate_unit(value, field: str = "unit") -> str:
     return unit
 
 
+FOOD_KEYS = ("name", "portion", "quantity", "unit_kcal", "unit_grams")
+
+
+def _plain(number: float) -> float | int:
+    """A whole number as an int, so the stored JSON reads 105 rather than
+    105.0 — which is also what JavaScript writes, keeping both backends'
+    exports byte-identical."""
+    return int(number) if number.is_integer() else number
+
+
+def _food_text(value, what: str, limit: int, required: bool) -> str:
+    if value is None and not required:
+        return ""
+    if not isinstance(value, str):
+        raise ValidationError(f"{what} must be text.", "foods")
+    text = value.strip()
+    if required and not text:
+        raise ValidationError(f"{what} is required.", "foods")
+    if len(text) > limit:
+        raise ValidationError(f"{what} must be {limit} characters or fewer.", "foods")
+    if any(ord(char) < 32 or ord(char) == 127 for char in text):
+        raise ValidationError(f"{what} must not contain control characters.", "foods")
+    return text
+
+
+def _food_number(value, what: str, low: float, high: float, low_inclusive: bool = True) -> float | int:
+    # Numbers only, never numeric strings: items always arrive as JSON, and
+    # float() and JavaScript's Number() disagree on strings like "1_000".
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValidationError(f"{what} must be a number.", "foods")
+    number = float(value)
+    if not isfinite(number):
+        raise ValidationError(f"{what} must be a finite number.", "foods")
+    too_low = number < low if low_inclusive else number <= low
+    if too_low or number > high:
+        bound = f"between {low:g} and {high:g}" if low_inclusive else f"above {low:g} and at most {high:g}"
+        raise ValidationError(f"{what} must be {bound}.", "foods")
+    return _plain(number)
+
+
+def food_kcal(item: Mapping) -> int:
+    """One item's energy, rounded half up. Spelled out rather than round(),
+    which rounds half to even, so JavaScript's port can match it exactly."""
+    return floor(item["quantity"] * item["unit_kcal"] + 0.5)
+
+
+def food_total(foods) -> int:
+    return sum(food_kcal(item) for item in foods or ())
+
+
+def _validate_food(item, position: int) -> dict:
+    prefix = f"Food {position}"
+    if not isinstance(item, Mapping):
+        raise ValidationError(f"{prefix} must be an object.", "foods")
+    unknown = sorted(set(item) - set(FOOD_KEYS))
+    if unknown:
+        raise ValidationError(f"{prefix} has unknown field(s): {', '.join(unknown)}.", "foods")
+    for key in ("name", "quantity", "unit_kcal"):
+        if key not in item:
+            raise ValidationError(f"{prefix} is missing '{key}'.", "foods")
+    grams = item.get("unit_grams")
+    food = {
+        "name": _food_text(item["name"], f"{prefix} name", config.MAX_FOOD_NAME_LENGTH, True),
+        "portion": _food_text(item.get("portion"), f"{prefix} portion", config.MAX_PORTION_LENGTH, False),
+        "quantity": _food_number(
+            item["quantity"], f"{prefix} quantity", config.MIN_FOOD_QUANTITY, config.MAX_FOOD_QUANTITY
+        ),
+        "unit_kcal": _food_number(item["unit_kcal"], f"{prefix} calories", 0, config.MAX_CALORIES),
+        "unit_grams": None
+        if grams is None
+        else _food_number(grams, f"{prefix} grams", 0, config.MAX_PORTION_GRAMS, low_inclusive=False),
+    }
+    if food_kcal(food) > config.MAX_CALORIES:
+        raise ValidationError(f"{prefix} comes to more than {config.MAX_CALORIES:,} kcal.", "foods")
+    return food
+
+
+def validate_foods(value, field: str = "foods") -> list[dict]:
+    """A day's food log: a list of items, or the same list as JSON text (how
+    it arrives from a CSV cell). Returns normalized copies in a fixed key
+    order, so the stored JSON is the same whichever backend wrote it."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            raise ValidationError("Food log must be a JSON list.", field) from None
+    if not isinstance(value, list):
+        raise ValidationError("Food log must be a list.", field)
+    if len(value) > config.MAX_FOODS_PER_DAY:
+        raise ValidationError(f"A day can hold at most {config.MAX_FOODS_PER_DAY} foods.", field)
+    foods = [_validate_food(item, position) for position, item in enumerate(value, start=1)]
+    if food_total(foods) > config.MAX_CALORIES:
+        raise ValidationError(f"The day's foods come to more than {config.MAX_CALORIES:,} kcal.", field)
+    return foods
+
+
+def encode_foods(foods) -> str:
+    """The stored and exported form: compact JSON, keys in FOOD_KEYS order."""
+    return json.dumps(
+        [{key: item[key] for key in FOOD_KEYS} for item in foods],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
 _ENTRY_FIELDS = {
     "weight_kg": lambda v: _validate_float(v, "weight_kg", config.MIN_WEIGHT_KG, config.MAX_WEIGHT_KG),
     "calories": lambda v: _validate_int(v, "calories", config.MIN_CALORIES, config.MAX_CALORIES),
@@ -121,7 +228,9 @@ _ENTRY_FIELDS = {
     ),
     "calorie_target": lambda v: _validate_int(v, "calorie_target", config.MIN_TARGET, config.MAX_TARGET),
     "note": _validate_note,
+    "foods": validate_foods,
 }
+
 
 def _target_validator(field: str):
     """Bind the field name, so a rejected value names the weekday it came from."""
@@ -148,6 +257,7 @@ _NULLABLE = frozenset(
         "calories_burned",
         "calorie_target",
         "note",
+        "foods",
         "goal_weight_kg",
         "goal_date",
         *config.WEEKDAY_TARGET_FIELDS,

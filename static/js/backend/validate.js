@@ -6,11 +6,17 @@
 import {
   DEFAULT_SETTINGS,
   MAX_CALORIES,
+  MAX_FOOD_NAME_LENGTH,
+  MAX_FOOD_QUANTITY,
+  MAX_FOODS_PER_DAY,
   MAX_NOTE_LENGTH,
+  MAX_PORTION_GRAMS,
+  MAX_PORTION_LENGTH,
   MAX_TARGET,
   MAX_WEIGHT_KG,
   MAX_YEAR,
   MIN_CALORIES,
+  MIN_FOOD_QUANTITY,
   MIN_TARGET,
   MIN_WEIGHT_KG,
   MIN_YEAR,
@@ -28,6 +34,7 @@ export const FIELD_LABELS = {
   calories_burned: 'Calories burned',
   calorie_target: 'Calorie target',
   note: 'Note',
+  foods: 'Food log',
   unit: 'Unit',
   default_calorie_target: 'Daily calorie target',
   goal_weight_kg: 'Goal weight in kilograms',
@@ -132,12 +139,107 @@ function validateUnit(value, field = 'unit') {
   return unit;
 }
 
+export const FOOD_KEYS = ['name', 'portion', 'quantity', 'unit_kcal', 'unit_grams'];
+
+function foodText(value, what, limit, required) {
+  if ((value === null || value === undefined) && !required) return '';
+  if (typeof value !== 'string') throw new ValidationError(`${what} must be text.`, 'foods');
+  const text = value.trim();
+  if (required && !text) throw new ValidationError(`${what} is required.`, 'foods');
+  if (text.length > limit) {
+    throw new ValidationError(`${what} must be ${limit} characters or fewer.`, 'foods');
+  }
+  if (/[\u0000-\u001f\u007f]/.test(text)) {
+    throw new ValidationError(`${what} must not contain control characters.`, 'foods');
+  }
+  return text;
+}
+
+/* Numbers only, never numeric strings: items always arrive as JSON, and
+   Number() and Python's float() disagree on strings like "1_000". Bounds
+   print as Python's :g prints them, which String() matches for these. */
+function foodNumber(value, what, low, high, lowInclusive = true) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    throw new ValidationError(`${what} must be a number.`, 'foods');
+  }
+  if (!Number.isFinite(value)) throw new ValidationError(`${what} must be a finite number.`, 'foods');
+  const tooLow = lowInclusive ? value < low : value <= low;
+  if (tooLow || value > high) {
+    const bound = lowInclusive ? `between ${low} and ${high}` : `above ${low} and at most ${high}`;
+    throw new ValidationError(`${what} must be ${bound}.`, 'foods');
+  }
+  return value;
+}
+
+/* One item's energy, rounded half up — the same arithmetic as food_kcal in
+   validation.py, so both backends total a day identically. */
+export const foodKcal = (item) => Math.floor(item.quantity * item.unit_kcal + 0.5);
+
+export const foodTotal = (foods) => (foods || []).reduce((sum, item) => sum + foodKcal(item), 0);
+
+function validateFood(item, position) {
+  const prefix = `Food ${position}`;
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    throw new ValidationError(`${prefix} must be an object.`, 'foods');
+  }
+  const unknown = Object.keys(item).filter((key) => !FOOD_KEYS.includes(key)).sort();
+  if (unknown.length) {
+    throw new ValidationError(`${prefix} has unknown field(s): ${unknown.join(', ')}.`, 'foods');
+  }
+  for (const key of ['name', 'quantity', 'unit_kcal']) {
+    if (!(key in item)) throw new ValidationError(`${prefix} is missing '${key}'.`, 'foods');
+  }
+  const grams = item.unit_grams;
+  const food = {
+    name: foodText(item.name, `${prefix} name`, MAX_FOOD_NAME_LENGTH, true),
+    portion: foodText(item.portion, `${prefix} portion`, MAX_PORTION_LENGTH, false),
+    quantity: foodNumber(item.quantity, `${prefix} quantity`, MIN_FOOD_QUANTITY, MAX_FOOD_QUANTITY),
+    unit_kcal: foodNumber(item.unit_kcal, `${prefix} calories`, 0, MAX_CALORIES),
+    unit_grams: grams === null || grams === undefined
+      ? null
+      : foodNumber(grams, `${prefix} grams`, 0, MAX_PORTION_GRAMS, false),
+  };
+  if (foodKcal(food) > MAX_CALORIES) {
+    throw new ValidationError(`${prefix} comes to more than ${MAX_CALORIES.toLocaleString('en-US')} kcal.`, 'foods');
+  }
+  return food;
+}
+
+/* A day's food log: a list of items, or the same list as JSON text (how it
+   arrives from a CSV cell). Returns normalized copies in a fixed key order,
+   so the stored JSON is the same whichever backend wrote it. */
+export function validateFoods(value, field = 'foods') {
+  let list = value;
+  if (typeof list === 'string') {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      throw new ValidationError('Food log must be a JSON list.', field);
+    }
+  }
+  if (!Array.isArray(list)) throw new ValidationError('Food log must be a list.', field);
+  if (list.length > MAX_FOODS_PER_DAY) {
+    throw new ValidationError(`A day can hold at most ${MAX_FOODS_PER_DAY} foods.`, field);
+  }
+  const foods = list.map((item, index) => validateFood(item, index + 1));
+  if (foodTotal(foods) > MAX_CALORIES) {
+    throw new ValidationError(`The day's foods come to more than ${MAX_CALORIES.toLocaleString('en-US')} kcal.`, field);
+  }
+  return foods;
+}
+
+/* The exported form: compact JSON, keys in FOOD_KEYS order — byte-identical
+   to encode_foods in validation.py. */
+export const encodeFoods = (foods) =>
+  JSON.stringify(foods.map((item) => Object.fromEntries(FOOD_KEYS.map((key) => [key, item[key]]))));
+
 const ENTRY_FIELDS = {
   weight_kg: (v) => validateFloat(v, 'weight_kg', MIN_WEIGHT_KG, MAX_WEIGHT_KG),
   calories: (v) => validateInt(v, 'calories', MIN_CALORIES, MAX_CALORIES),
   calories_burned: (v) => validateInt(v, 'calories_burned', MIN_CALORIES, MAX_CALORIES),
   calorie_target: (v) => validateInt(v, 'calorie_target', MIN_TARGET, MAX_TARGET),
   note: validateNote,
+  foods: validateFoods,
 };
 
 const SETTINGS_FIELDS = {
@@ -158,6 +260,7 @@ const NULLABLE = new Set([
   'calories_burned',
   'calorie_target',
   'note',
+  'foods',
   'goal_weight_kg',
   'goal_date',
   ...WEEKDAY_TARGET_FIELDS,

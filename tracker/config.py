@@ -32,6 +32,16 @@ MAX_NOTE_LENGTH = 500
 MIN_YEAR = 1900
 MAX_YEAR = 2100
 
+# The food log: a day's list of items, each a quantity of one portion with the
+# energy of a single portion. A day's calories are their sum whenever it has
+# any (see validation.food_total).
+MAX_FOODS_PER_DAY = 200
+MAX_FOOD_NAME_LENGTH = 160
+MAX_PORTION_LENGTH = 120
+MIN_FOOD_QUANTITY = 0.01
+MAX_FOOD_QUANTITY = 10_000
+MAX_PORTION_GRAMS = 10_000
+
 UNITS = ("lb", "kg")
 LB_PER_KG = 2.2046226218
 
