@@ -1,0 +1,45 @@
+# Rebuilds static/data/foods.json from the USDA FoodData Central releases and
+# commits it to the branch it ran on. Run it by hand after changing the release
+# URLs in tools/build_food_index.py; it also runs when that script changes.
+# Never on master: the index reaches master only through a reviewed merge.
+name: Build food index
+
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [master]
+    paths: [tools/build_food_index.py]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: food-index-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.ref != 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Build the index
+        run: python3 tools/build_food_index.py
+      - name: Check it
+        run: |
+          python3 -m pip install --disable-pip-version-check pytest
+          python3 -m pytest -q tests/test_food_index.py
+      - name: Commit it if it changed
+        run: |
+          git add static/data/foods.json
+          if git diff --cached --quiet; then
+            echo "food index unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data: rebuild food index from USDA FoodData Central"
+          git push
