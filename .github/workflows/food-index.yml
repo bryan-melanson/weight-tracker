@@ -1,6 +1,6 @@
 # Rebuilds static/data/foods.json from the USDA FoodData Central releases and
 # commits it to the branch it ran on. Run it by hand after changing the release
-# URLs in tools/build_food_index.py; it also runs when that script changes.
+# URLs in tools/build_food_index.py; it also runs when that script or this workflow changes.
 # Never on master: the index reaches master only through a reviewed merge.
 name: Build food index
 
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches-ignore: [master]
-    paths: [tools/build_food_index.py]
+    paths: [tools/build_food_index.py, .github/workflows/food-index.yml]
 
 permissions:
   contents: write
