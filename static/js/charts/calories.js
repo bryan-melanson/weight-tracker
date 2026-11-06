@@ -24,7 +24,10 @@ import {
   tooltipDate,
 } from './core.js';
 
-const MAX_BAR_WIDTH = 24;
+const MAX_BAR_WIDTH = 14;
+// Columns keep to a fraction of their slot so a short range reads as a row of
+// slim marks rather than a row of blocks.
+const BAR_SLOT_FRACTION = 0.55;
 const SURFACE_GAP = 2;
 
 export function caloriesSeries(points, daysInRange) {
@@ -57,7 +60,7 @@ export function drawCaloriesChart({ width, props, tooltip }) {
 
   const colors = { under: token('--series-1'), over: token('--series-over') };
   const slot = (inner.x1 - inner.x0) / Math.max(1, points.length);
-  const barWidth = Math.max(2, Math.min(MAX_BAR_WIDTH, slot - SURFACE_GAP));
+  const barWidth = Math.max(2, Math.min(MAX_BAR_WIDTH, slot * BAR_SLOT_FRACTION, slot - SURFACE_GAP));
 
   const bars = points.map((point, index) => {
     const x = xOf(index) - barWidth / 2;
