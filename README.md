@@ -64,6 +64,12 @@ on the desktop and **Import CSV** on the phone.
 
 Pick one as the one you actually log into, or they will drift apart.
 
+### Which version is on the phone
+
+The Food card ends with "App version v9" (or whichever). It is the version
+the service worker cached, so after a deploy, open the app once — it reloads
+itself when the update lands — and the number changes.
+
 ### How safe the data on the phone is
 
 Safari's seven-day eviction of script-writable storage **does not apply to a
@@ -140,6 +146,56 @@ through exercise, a calorie target just for that day, and a note. Saving the
 same date again updates it, so you can log weight in the morning and calories
 at night.
 
+**Food** is the day's food log, beside the form and following its date. Search
+about 8,000 foods by name — banana, oats, cheddar — pick one, and give an
+amount; the calories show as you type. The measure list is grouped:
+
+- **Portions** USDA sized for that food: "medium", "slice", "large".
+- **Volume**: USDA's own ("cup, chopped"), plus cup, tbsp, tsp, fl oz and ml
+  worked out from the food's density wherever USDA weighed any volume of it.
+  Where it weighed none, a food can borrow the density of a close relative
+  (white rice from white rice), or of its family when at least three
+  relatives agree within 15% (creamy peanut butter from the other peanut
+  butters). Those measures are marked *est.*, and the picker says where the
+  estimate came from. Anything less certain stays weight-only rather than
+  guess: rolled oats do not borrow a cup from whole groats at twice the weight.
+- **Weight**: g, oz, lb and kg, always.
+
+Search puts an entry with cup or spoon measures ahead of a near-identical one
+that only has weights. USDA never weighed some foods by volume at all (chia
+seeds, rolled oats); those offer weights only.
+
+Switching measure keeps the same amount of food, so 1 cup of oats becomes 81 g
+rather than 1 g. A food opens on the measure and amount you last used for it,
+or else a medium one, or else 100 g.
+
+- **Recent** foods are listed under the search box when it is empty, and come
+  first in results. One tap logs one again exactly as last time.
+- **A food that isn't listed** — a recipe, or something off a label — takes a
+  name and its calories per serving, per 100 g, per oz, or per cup, tbsp or
+  tsp. You then pick how much you had like any other food: in servings, or
+  in any weight or any volume, matching what the calories were given per.
+  From then on search finds it, tagged **My food** and listed above USDA's
+  matches, and opens it on the amount you last had. Your foods are found from
+  your whole history, not just recent days. They live in the days you logged
+  them on — no separate list — so they are in the export and the backup
+  already; the newest way you entered one is the one search offers, and a
+  food stops being offered only if every day it was logged on is deleted.
+- **Tap a food on the day** to change its amount or measure, or remove it.
+
+A running total against the day's target, with what is left, sits at the top.
+Once a day has any foods, its *Calories eaten* is their total — the field
+shows it and stops taking a number of its own. If you had already typed a
+total for that day, adding the first food keeps it as an item, "Calories
+logged before the food list", which you can remove like any other. A day with
+no foods works exactly as before, typed total and all.
+
+The search runs on the device against a copy of the index shipped with the
+app, so it works offline and sends nothing anywhere. The calories are USDA
+FoodData Central's ([SR Legacy](https://fdc.nal.usda.gov/) and Foundation
+Foods, public domain): generic foods, not brands, so a packaged product is
+best added from its label as a food that isn't listed.
+
 **Targets** holds your standing settings: weight unit (pounds by default, or
 kilograms), a calorie target for each weekday, a goal weight, and an optional
 target date.
@@ -194,13 +250,20 @@ is the backup.
 **Import CSV** reads the same shape back, on either:
 
 ```csv
-date,weight_kg,calories,calories_burned,calorie_target,note
-2026-10-01,80.5,1950,420,2000,felt good
-2026-10-02,,2100,,,
+date,weight_kg,calories,calories_burned,calorie_target,note,foods
+2026-10-01,80.5,1950,420,2000,felt good,
+2026-10-02,,105,,,,"[{""name"":""Bananas, raw"",""portion"":""medium"",""quantity"":1,""unit_kcal"":105.02,""unit_grams"":118}]"
 ```
 
 Only `date` is required; blank cells clear a value — a CSV written before the
-`calories_burned` column existed still imports. Weight in the CSV is always in
+`calories_burned` or `foods` columns existed still imports.
+
+`foods` is the day's food log as one JSON cell, so a day stays one row and the
+file stays readable in a spreadsheet: each item is a `quantity` of one
+`portion`, with the energy (`unit_kcal`) and weight (`unit_grams`, when
+known) of a single portion. On import, a day's `calories` are recomputed from
+its foods whenever it has any. The log is in the backup file too, since that
+is the same CSV. Weight in the CSV is always in
 kilograms regardless of the display unit. An import is validated in full
 before anything is written, so a bad row cannot leave a half-applied import.
 
@@ -221,12 +284,35 @@ static/          the frontend — ES modules, no build step, no CDN
   js/format.js     units, numbers, dates
   js/stats.js      derived metrics (trend, balance, projection)
   js/charts/       SVG chart engine and the three charts
+  js/foods/        catalog.js (search, measures, recents — pure), panel.js (the card)
+  foods.json       the food index, built by tools/build_food_index.py
   backup/github.js the GitHub Contents API, reduced to three calls
   backup/service.js one-way push of the whole CSV; restore on request
   backup/          config.js (device-local settings), panel.js (the section)
   persistence.js   asks the browser not to reclaim the data
   sw.js            service worker: precaches the app for offline use
+tools/           build_food_index.py — USDA releases in, static/foods.json out
 tests/           Python tests (pytest) and JS tests (node:test)
+```
+
+### The food index
+
+`static/foods.json` is generated, not hand-edited. `tools/build_food_index.py`
+reads USDA's SR Legacy and Foundation Foods CSV releases and keeps, for each
+food, its name, its calories per 100 g, and its household measures normalized
+to one of each ("cup, mashed" = 225 g). Foods listed under the same name more
+than once are merged, preferring Foundation Foods' newer analysis. The result
+is about 800 KB, 130 KB over the wire compressed, and the service worker
+caches it with the rest of the app.
+
+`.github/workflows/food-index.yml` runs the builder on GitHub's runners and
+commits the result to the branch it ran on — never to `master` directly. To
+pick up a newer USDA release, change the URLs at the top of the script on a
+branch and push; the workflow rebuilds the file there for review. The builder
+uses only the standard library and also runs locally against downloaded zips:
+
+```bash
+python3 tools/build_food_index.py sr_legacy.zip foundation.zip
 ```
 
 ### Two backends, one frontend
@@ -289,7 +375,7 @@ node --test "tests/js/*.test.js"   # frontend: units, dates, metrics, backend
 python3 -m pytest --cov=tracker --cov-report=term-missing
 ```
 
-412 tests; the Python package is at 95% line coverage.
+569 tests: 265 for the server and the food-index builder, 304 for the frontend.
 
 The frontend suite covers the ported validation, CSV and store logic against
 an in-memory stand-in for IndexedDB, so it needs no browser and no

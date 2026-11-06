@@ -26,6 +26,7 @@ const entry = (date, overrides = {}) => ({
   calories_burned: null,
   calorie_target: null,
   note: null,
+  foods: null,
   ...overrides,
 });
 
@@ -35,16 +36,19 @@ describe('writeCsv', () => {
       entry('2026-10-01', { weight_kg: 80.0, calories: 2100, calories_burned: 450, calorie_target: 2000 }),
     ]);
     const lines = text.trim().split('\n');
-    assert.equal(lines[0], 'date,weight_kg,calories,calories_burned,calorie_target,note');
+    assert.equal(lines[0], 'date,weight_kg,calories,calories_burned,calorie_target,note,foods');
     assert.ok(lines[1].startsWith('2026-10-01,80.0,2100,450,2000'));
   });
 
   it('writes the columns in the documented order', () => {
-    assert.deepEqual(CSV_COLUMNS, ['date', 'weight_kg', 'calories', 'calories_burned', 'calorie_target', 'note']);
+    assert.deepEqual(
+      CSV_COLUMNS,
+      ['date', 'weight_kg', 'calories', 'calories_burned', 'calorie_target', 'note', 'foods'],
+    );
   });
 
   it('leaves unset values as empty cells', () => {
-    assert.equal(writeCsv([entry('2026-10-02')]).trim().split('\n')[1], '2026-10-02,,,,,');
+    assert.equal(writeCsv([entry('2026-10-02')]).trim().split('\n')[1], '2026-10-02,,,,,,');
   });
 
   it('keeps a weight that is a whole number readable as a decimal', () => {

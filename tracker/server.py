@@ -226,4 +226,5 @@ def create_server(host: str = config.DEFAULT_HOST, port: int = config.DEFAULT_PO
     mimetypes.add_type("application/javascript", ".js")
     mimetypes.add_type("text/css", ".css")
     mimetypes.add_type("application/manifest+json", ".webmanifest")
+    mimetypes.add_type("application/json", ".json")
     return TrackerServer((host, port), Handler, db_path or config.DEFAULT_DB_PATH)

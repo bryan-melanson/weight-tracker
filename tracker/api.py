@@ -11,10 +11,16 @@ from collections.abc import Mapping
 from urllib.parse import parse_qs
 
 from .store import Store
-from .validation import ValidationError, validate_date, validate_entry_patch, validate_settings_patch
+from .validation import (
+    ValidationError,
+    encode_foods,
+    validate_date,
+    validate_entry_patch,
+    validate_settings_patch,
+)
 
 CSV_KEY = "csv"
-CSV_COLUMNS = ("date", "weight_kg", "calories", "calories_burned", "calorie_target", "note")
+CSV_COLUMNS = ("date", "weight_kg", "calories", "calories_burned", "calorie_target", "note", "foods")
 
 _ENTRY_PREFIX = "/api/entries/"
 
@@ -45,12 +51,21 @@ def _range_from_query(query: str) -> tuple[str | None, str | None]:
     )
 
 
+def _csv_cell(entry: dict, column: str):
+    value = entry[column]
+    if value is None:
+        return ""
+    # The food log travels as one JSON cell, so a day stays one row and a
+    # file without the column still imports.
+    return encode_foods(value) if column == "foods" else value
+
+
 def _export_csv(store: Store) -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(CSV_COLUMNS)
     for entry in store.list_entries():
-        writer.writerow(["" if entry[column] is None else entry[column] for column in CSV_COLUMNS])
+        writer.writerow([_csv_cell(entry, column) for column in CSV_COLUMNS])
     return buffer.getvalue()
 
 

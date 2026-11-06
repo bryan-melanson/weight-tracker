@@ -11,13 +11,14 @@
    behaviour — meant an installed app could sit on a stale cache indefinitely,
    because quitting it is something the person using it has to think to do. */
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v9';
 const CACHE_NAME = `weight-tracker-${CACHE_VERSION}`;
 
 const PRECACHE = [
   './',
   'index.html',
   'manifest.webmanifest',
+  'foods.json',
   'css/app.css',
   'js/api.js',
   'js/app.js',
@@ -43,6 +44,8 @@ const PRECACHE = [
   'js/charts/calories.js',
   'js/charts/core.js',
   'js/charts/weight.js',
+  'js/foods/catalog.js',
+  'js/foods/panel.js',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
@@ -52,7 +55,10 @@ const PRECACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE))
+      // cache: 'reload' goes past the browser's HTTP cache, which a static
+      // host lets keep a file for minutes: an update must cache the files it
+      // was deployed with, not whatever the browser fetched last.
+      .then((cache) => cache.addAll(PRECACHE.map((path) => new Request(path, { cache: 'reload' }))))
       // Only once every file is cached: a worker that took over mid-download
       // would have nothing to serve for whatever had not arrived yet.
       .then(() => self.skipWaiting()),

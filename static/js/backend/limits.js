@@ -14,6 +14,15 @@ export const MAX_NOTE_LENGTH = 500;
 export const MIN_YEAR = 1900;
 export const MAX_YEAR = 2100;
 
+/* The food log: a day's list of items, each a quantity of one portion with
+   the energy of a single portion. */
+export const MAX_FOODS_PER_DAY = 200;
+export const MAX_FOOD_NAME_LENGTH = 160;
+export const MAX_PORTION_LENGTH = 120;
+export const MIN_FOOD_QUANTITY = 0.01;
+export const MAX_FOOD_QUANTITY = 10000;
+export const MAX_PORTION_GRAMS = 10000;
+
 export const UNITS = ['lb', 'kg'];
 
 /* The week comes from format.js rather than a third copy of it. */

@@ -7,7 +7,7 @@
    IndexedDB. */
 
 import { DEFAULT_SETTINGS } from './limits.js';
-import { ENTRY_COLUMNS, SETTINGS_COLUMNS } from './validate.js';
+import { ENTRY_COLUMNS, SETTINGS_COLUMNS, foodTotal } from './validate.js';
 
 const now = () => `${new Date().toISOString().slice(0, 19)}+00:00`;
 
@@ -17,6 +17,26 @@ const blankEntry = (date) => ({
   date,
   ...Object.fromEntries(ENTRY_COLUMNS.map((column) => [column, null])),
 });
+
+/* Keep one rule, whichever field the patch touches: a day with a food log has
+   the log's total as its calories — the port of Store._with_food_total.
+
+   Setting foods sets calories. Setting calories alone on a day that has foods
+   is overruled by them. Clearing the log clears the total it had written,
+   unless the same patch supplies a number of its own. */
+function withFoodTotal(existing, patch) {
+  if (!('foods' in patch) && !('calories' in patch)) return patch;
+  const next = { ...patch };
+  const hadFoods = Boolean(existing && existing.foods && existing.foods.length);
+  if ('foods' in next) {
+    next.foods = next.foods && next.foods.length ? next.foods : null; // an empty log is no log
+    if (next.foods) next.calories = foodTotal(next.foods);
+    else if (!('calories' in next) && hadFoods) next.calories = null;
+  } else if (hadFoods) {
+    next.calories = foodTotal(existing.foods);
+  }
+  return next;
+}
 
 export function createStore(adapter) {
   /* Write the defaults once. An existing record is left exactly as it is. */
@@ -53,9 +73,11 @@ export function createStore(adapter) {
 
     /* Create or merge a day's entry. Fields absent from the patch are kept. */
     async upsertEntry(date, patch) {
-      const existing = (await adapter.getEntry(date)) || blankEntry(date);
+      const stored = await adapter.getEntry(date);
+      const existing = stored || blankEntry(date);
+      const merged = withFoodTotal(stored, patch);
       const changes = Object.fromEntries(
-        ENTRY_COLUMNS.filter((column) => column in patch).map((column) => [column, patch[column]]),
+        ENTRY_COLUMNS.filter((column) => column in merged).map((column) => [column, merged[column]]),
       );
       const record = { ...existing, ...changes, date, updated_at: now() };
       await adapter.putEntry(record);
