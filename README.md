@@ -212,6 +212,38 @@ specific target it has:
 Changing a weekday's target re-scores every past day that falls on it, since
 nothing is copied onto an entry unless you set it there.
 
+**Profile** holds what the maintenance estimate is worked out from: height,
+date of birth, sex, and how active you are apart from the exercise you log.
+Fill it in and the **running calorie balance** switches from measuring each
+day against your target to measuring it against the calories that day
+actually cost you — the difference between an adherence score and an estimated
+energy deficit. Leave any of height, date of birth or sex unset and the
+balance keeps measuring against the targets.
+
+Maintenance is estimated with
+[Mifflin-St Jeor](https://pubmed.ncbi.nlm.nih.gov/2305711/) — resting energy
+from weight, height, age and sex — times an activity factor from 1.2
+(sedentary) to 1.9 (heavy physical job). Each day uses the most recent weight
+logged on or before it, so the estimate falls as you do; a day before your
+first reading borrows that one. A birthday inside the range moves the estimate
+on the day it falls.
+
+Two things worth knowing about it:
+
+- **Exercise you log is already netted out of each day's intake**, so the
+  activity level to pick is the one describing the rest of your day.
+  Otherwise a workout is counted twice — once in the factor and once in the
+  burn you logged.
+- **It is a population average, not a measurement of you.** Real maintenance
+  varies by a few hundred kcal between people of the same size. If your
+  weight trend disagrees with the estimate over a few weeks, the trend is the
+  measurement; the estimate is the guess.
+
+Height is entered in inches alongside pounds, or centimetres alongside
+kilograms, and stored in centimetres either way. The card shows the estimate
+as it stands, with the resting figure and factor behind it, so a mistyped
+height is visible rather than buried in a chart.
+
 ## What it shows
 
 Everything below the range filter (30 days / 90 days / 1 year / All) is scoped
@@ -219,8 +251,9 @@ to that range.
 
 - **Summary tiles** — current weight and its change over the range, distance to
   goal with a projected date, 7-day average intake against target, average
-  exercise per logged day, the running calorie balance, and how many days you
-  logged.
+  exercise per logged day, the running calorie balance — labelled with whether
+  it is measured against maintenance or against your targets — and how many
+  days you logged.
 - **Weight** — every logged reading, a 7-day trailing average as the trend, and
   your goal as a labelled reference line.
 - **Calories against target** — each day as a column above or below the target
@@ -229,10 +262,12 @@ to that range.
   netted out of that day's intake first. Past 120 days in view it folds into
   weekly averages. Intake, exercise and the net of the two stay in the tooltip
   and the table.
-- **Running calorie balance** — the cumulative sum of (eaten − burnt − target),
-  with the equivalent body mass at 7,700 kcal/kg. Exercise counts only on the
-  days you logged it and nothing estimates the rest, so treat that equivalent
-  as a rough guide.
+- **Running calorie balance** — the cumulative sum of (eaten − burnt −
+  baseline), with the equivalent body mass at 7,700 kcal/kg. The baseline is
+  the maintenance level estimated for that day once **Profile** is filled in,
+  and that day's calorie target until then; the chart's subtitle, legend and
+  tooltip all name which. Exercise counts only on the days you logged it and
+  nothing estimates the rest, so treat that equivalent as a rough guide.
 - **Logged days** — the same values as a table, readable without hovering, with
   per-row edit and delete.
 
@@ -283,6 +318,7 @@ static/          the frontend — ES modules, no build step, no CDN
   backend/         validate.js, store.js, csv.js, idb.js, limits.js
   js/format.js     units, numbers, dates
   js/stats.js      derived metrics (trend, balance, projection)
+  js/maintenance.js the maintenance estimate: Mifflin-St Jeor and activity
   js/charts/       SVG chart engine and the three charts
   js/foods/        catalog.js (search, measures, recents — pure), panel.js (the card)
   foods.json       the food index, built by tools/build_food_index.py
@@ -324,8 +360,10 @@ talk to, so it stores data on the device.
 `backend/validate.js`, `backend/store.js` and `backend/csv.js` are ports of
 `validation.py`, `store.py` and the CSV half of `api.py`, so both backends
 accept and reject exactly the same things and their CSV exports are
-interchangeable. The limits are the one thing written down twice —
-`tests/test_js_limits.py` fails if the two copies ever disagree.
+interchangeable. The limits are the one thing written down twice — along with
+the two closed sets behind the maintenance profile, which live in
+`js/maintenance.js` — and `tests/test_js_limits.py` fails if the copies ever
+disagree.
 
 To exercise the on-device backend locally, serve `static/` with any static
 server and add `?backend=local`:
@@ -375,7 +413,7 @@ node --test "tests/js/*.test.js"   # frontend: units, dates, metrics, backend
 python3 -m pytest --cov=tracker --cov-report=term-missing
 ```
 
-569 tests: 265 for the server and the food-index builder, 304 for the frontend.
+668 tests: 300 for the server and the food-index builder, 368 for the frontend.
 
 The frontend suite covers the ported validation, CSV and store logic against
 an in-memory stand-in for IndexedDB, so it needs no browser and no

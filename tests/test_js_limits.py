@@ -15,6 +15,7 @@ from tracker import config
 
 LIMITS_JS = (config.PROJECT_ROOT / "static" / "js" / "backend" / "limits.js").read_text()
 FORMAT_JS = (config.PROJECT_ROOT / "static" / "js" / "format.js").read_text()
+MAINTENANCE_JS = (config.PROJECT_ROOT / "static" / "js" / "maintenance.js").read_text()
 
 # The bounds declared as `export const NAME = value;` in limits.js.
 SCALARS = (
@@ -33,6 +34,8 @@ SCALARS = (
     "MIN_FOOD_QUANTITY",
     "MAX_FOOD_QUANTITY",
     "MAX_PORTION_GRAMS",
+    "MIN_HEIGHT_CM",
+    "MAX_HEIGHT_CM",
 )
 
 
@@ -75,6 +78,30 @@ class TestWeekdays:
         assert dict(pairs) == config.WEEKDAY_NAMES
 
 
+class TestMaintenanceProfile:
+    """limits.js takes the profile's two closed sets from maintenance.js, so
+    that file is the one which has to agree with the server."""
+
+    def test_sexes_match_config(self):
+        sexes = re.search(r"export const SEXES = \[(.*?)\];", MAINTENANCE_JS, re.DOTALL)
+        assert sexes and tuple(_strings(sexes.group(1))) == config.SEXES
+
+    def test_activity_keys_and_factors_match_config(self):
+        levels = re.findall(r"\{ key: '(\w+)', factor: ([\d.]+),", MAINTENANCE_JS)
+        assert tuple(key for key, _factor in levels) == config.ACTIVITY_KEYS
+        assert {key: float(factor) for key, factor in levels} == config.ACTIVITY_FACTORS
+
+    def test_the_default_level_matches_config(self):
+        assert _strings(_exported("DEFAULT_ACTIVITY_LEVEL", MAINTENANCE_JS)) == [
+            config.DEFAULT_ACTIVITY_LEVEL
+        ]
+
+    def test_the_profile_fields_default_to_unset(self):
+        for field in config.PROFILE_FIELDS:
+            assert re.search(rf"^\s+{field}: null,$", LIMITS_JS, re.MULTILINE)
+            assert config.DEFAULT_SETTINGS[field] is None
+
+
 class TestDefaultSettings:
     def test_unit_matches_config(self):
         match = re.search(r"^\s+unit: '(\w+)',$", LIMITS_JS, re.MULTILINE)
@@ -97,3 +124,7 @@ class TestEnergyEquivalent:
 
     def test_lb_per_kg_matches_config(self):
         assert float(_exported("LB_PER_KG", FORMAT_JS)) == float(config.LB_PER_KG)
+
+    def test_cm_per_in_matches_config(self):
+        """format.js converts a height for display with it."""
+        assert float(_exported("CM_PER_IN", FORMAT_JS)) == float(config.CM_PER_IN)

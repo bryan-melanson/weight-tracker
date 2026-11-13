@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { todayISO, addDays } from '../../static/js/format.js';
+import { ageOn } from '../../static/js/maintenance.js';
 import {
   WEEKLY_THRESHOLD_DAYS,
+  balanceBasis,
+  balancePoints,
   caloriePoints,
   cumulativeBalance,
   effectiveTarget,
@@ -11,6 +14,7 @@ import {
   netIntake,
   inRange,
   projectGoalDate,
+  maintenanceNow,
   summarize,
   targetForDate,
   trailingAverage,
@@ -257,6 +261,110 @@ describe('weeklyCalories', () => {
   });
 });
 
+/* The maintenance basis. The numbers below are worked from Mifflin-St Jeor
+   by hand so a change in the formula shows up here and not only in
+   maintenance.test.js: 10·kg + 6.25·178 − 5·age + 5, times 1.2. */
+describe('balanceBasis', () => {
+  const profile = {
+    ...settings,
+    height_cm: 178,
+    birth_date: '1986-04-02',
+    sex: 'male',
+    activity_level: 'sedentary',
+  };
+  const logged = [entry('2026-10-01', { weight_kg: 80, calories: 2000 })];
+
+  it('measures against the targets while the profile is incomplete', () => {
+    assert.equal(balanceBasis(logged, settings).kind, 'target');
+  });
+
+  it('measures against maintenance once the profile is filled in', () => {
+    assert.equal(balanceBasis(logged, profile).kind, 'maintenance');
+  });
+
+  it('keeps the targets when no weight has been logged', () => {
+    const noWeight = [entry('2026-10-01', { calories: 2000 })];
+    assert.equal(balanceBasis(noWeight, profile).kind, 'target');
+  });
+});
+
+describe('balancePoints', () => {
+  const profile = {
+    ...settings,
+    height_cm: 178,
+    birth_date: '1986-04-02',
+    sex: 'male',
+    activity_level: 'sedentary',
+  };
+  const maintenanceAt = (kg, age) => (10 * kg + 6.25 * 178 - 5 * age + 5) * 1.2;
+
+  it('measures intake against the maintenance for that day', () => {
+    const entries = [entry('2026-10-01', { weight_kg: 80, calories: 2000 })];
+    const [point] = balancePoints(entries, profile);
+    const expected = maintenanceAt(80, 40);
+    assert.ok(Math.abs(point.baseline - expected) < 1e-9);
+    assert.ok(Math.abs(point.diff - (2000 - expected)) < 1e-9);
+  });
+
+  it('nets logged exercise out of intake first', () => {
+    const entries = [entry('2026-10-01', { weight_kg: 80, calories: 2500, calories_burned: 500 })];
+    const [point] = balancePoints(entries, profile);
+    assert.ok(Math.abs(point.diff - (2000 - maintenanceAt(80, 40))) < 1e-9);
+  });
+
+  it('follows the weight down, so the baseline falls with it', () => {
+    const entries = [
+      entry('2026-10-01', { weight_kg: 90, calories: 2000 }),
+      entry('2026-11-01', { weight_kg: 85, calories: 2000 }),
+    ];
+    const [first, second] = balancePoints(entries, profile);
+    assert.ok(second.baseline < first.baseline);
+    assert.ok(Math.abs(first.baseline - second.baseline - 5 * 10 * 1.2) < 1e-9);
+  });
+
+  it('keeps the day target on the point as well', () => {
+    const entries = [entry('2026-10-01', { weight_kg: 80, calories: 2000, calorie_target: 1800 })];
+    assert.equal(balancePoints(entries, profile)[0].target, 1800);
+  });
+
+  it('falls back to the target as the baseline without a profile', () => {
+    const entries = [entry('2026-10-01', { weight_kg: 80, calories: 2200 })];
+    const [point] = balancePoints(entries, settings);
+    assert.equal(point.baseline, 2000);
+    assert.equal(point.diff, 200);
+  });
+
+  it('skips days with no intake logged, like the calories series', () => {
+    const entries = [entry('2026-10-01', { weight_kg: 80 }), entry('2026-10-02', { calories: 2000 })];
+    assert.deepEqual(balancePoints(entries, profile).map((point) => point.iso), ['2026-10-02']);
+  });
+});
+
+describe('maintenanceNow', () => {
+  const profile = {
+    ...settings,
+    height_cm: 178,
+    birth_date: '1986-04-02',
+    sex: 'male',
+    activity_level: 'sedentary',
+  };
+
+  it('estimates from the most recent weight', () => {
+    const entries = [
+      entry('2026-10-01', { weight_kg: 90 }),
+      entry('2026-10-02', { weight_kg: 85 }),
+    ];
+    const age = ageOn(todayISO(), '1986-04-02');
+    const expected = (10 * 85 + 6.25 * 178 - 5 * age + 5) * 1.2;
+    assert.ok(Math.abs(maintenanceNow(entries, profile) - expected) < 1e-9);
+  });
+
+  it('is null without a profile or a weight', () => {
+    assert.equal(maintenanceNow([entry('2026-10-01', { weight_kg: 85 })], settings), null);
+    assert.equal(maintenanceNow([entry('2026-10-01', { calories: 2000 })], profile), null);
+  });
+});
+
 describe('summarize', () => {
   const entries = [
     entry('2026-10-01', { weight_kg: 80.0, calories: 2100 }),
@@ -338,5 +446,62 @@ describe('summarize', () => {
   it('ignores entries outside the range', () => {
     const summary = summarize([...entries, entry('2027-01-01', { weight_kg: 60 })], settings, range);
     assert.equal(summary.current.kg, 79.4);
+  });
+
+  it('reports which baseline the running balance used', () => {
+    assert.equal(summarize(entries, settings, range).balanceBasis, 'target');
+    assert.equal(summarize(entries, settings, range).maintenance, null);
+  });
+
+  it('sums the balance against maintenance once the profile allows it', () => {
+    const profile = {
+      ...settings,
+      height_cm: 178,
+      birth_date: '1986-04-02',
+      sex: 'male',
+      activity_level: 'sedentary',
+    };
+    const summary = summarize(entries, profile, range);
+    assert.equal(summary.balanceBasis, 'maintenance');
+    assert.ok(summary.maintenance > 0);
+    const expected = summary.deficits.reduce((sum, point) => sum + point.diff, 0);
+    assert.ok(Math.abs(summary.netKcal - expected) < 1e-9);
+    assert.notEqual(summary.netKcal, 0, 'the target-based total for these days is 0');
+  });
+
+  it('keeps the calories chart on the targets whatever the balance uses', () => {
+    const profile = {
+      ...settings,
+      height_cm: 178,
+      birth_date: '1986-04-02',
+      sex: 'male',
+      activity_level: 'sedentary',
+    };
+    const summary = summarize(entries, profile, range);
+    assert.deepEqual(summary.calories.map((point) => point.target), [2000, 2000, 2200, 2000]);
+    assert.equal(summary.avgDiff, (100 - 100 + 200 - 200) / 4);
+  });
+
+  it('averages the daily difference from the baseline it used', () => {
+    const summary = summarize(entries, settings, range);
+    assert.equal(summary.avgBalanceDiff, summary.avgDiff, 'the same baseline, so the same average');
+  });
+
+  it('reaches outside the range for a weight to estimate from', () => {
+    /* The weight logged before the range is the only one there is, so the
+       days inside it are still measured against maintenance. */
+    const profile = {
+      ...settings,
+      height_cm: 178,
+      birth_date: '1986-04-02',
+      sex: 'male',
+      activity_level: 'sedentary',
+    };
+    const inside = [entry('2026-10-02', { calories: 2000 })];
+    const earlier = entry('2026-09-01', { weight_kg: 80 });
+    const summary = summarize([earlier, ...inside], profile, { from: '2026-10-01', to: '2026-10-04' });
+    assert.equal(summary.balanceBasis, 'maintenance');
+    assert.equal(summary.deficits.length, 1);
+    assert.ok(summary.deficits[0].baseline > 0);
   });
 });

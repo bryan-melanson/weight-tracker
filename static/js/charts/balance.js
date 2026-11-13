@@ -1,8 +1,10 @@
-/* Running calorie balance: the cumulative sum of (eaten − burnt − target).
+/* Running calorie balance: the cumulative sum of (eaten − burnt − baseline),
+   where the baseline is the estimated maintenance level when the profile
+   allows one and the day's calorie target otherwise (see stats.balanceBasis).
    Below the zero line is a deficit, above it a surplus — a diverging read
    around one baseline, on a single axis. */
 
-import { KCAL_PER_KG, fmtSignedInt, fmtWeightDelta, parseISO } from '../format.js';
+import { KCAL_PER_KG, fmtInt, fmtSignedInt, fmtWeightDelta, parseISO } from '../format.js';
 import {
   attachCrosshair,
   createFrame,
@@ -22,8 +24,12 @@ import {
 const AREA_OPACITY = 0.1;
 
 export function drawBalanceChart({ width, props, tooltip }) {
-  const { balance, settings, range } = props;
-  const frame = createFrame({ width, label: 'Cumulative calories against target, net of exercise' });
+  const { balance, deficits, basis, settings, range } = props;
+  const againstMaintenance = basis === 'maintenance';
+  const frame = createFrame({
+    width,
+    label: `Cumulative calories against ${againstMaintenance ? 'maintenance' : 'target'}, net of exercise`,
+  });
   const { root, inner } = frame;
 
   if (!balance.length) {
@@ -101,20 +107,30 @@ export function drawBalanceChart({ width, props, tooltip }) {
     count: balance.length,
     onSelect: (index, x) => {
       const point = balance[index];
-      tooltip.show(x, yScale(point.kcal), {
-        title: tooltipDate(point.iso),
-        rows: [
+      const day = deficits && deficits[index];
+      const rows = [
+        {
+          color: point.kcal > 0 ? colors.surplus : colors.deficit,
+          name: point.kcal > 0 ? 'cumulative surplus' : 'cumulative deficit',
+          value: `${fmtSignedInt(point.kcal)} kcal`,
+        },
+        {
+          name: 'equivalent body mass',
+          value: fmtWeightDelta(point.kcal / KCAL_PER_KG, settings.unit, { places: 2 }),
+        },
+      ];
+      // The baseline that day was measured against, so a day's contribution
+      // to the total is readable without working back from the slope.
+      if (day) {
+        rows.push(
+          { name: 'eaten, net of exercise', value: fmtInt(day.net) },
           {
-            color: point.kcal > 0 ? colors.surplus : colors.deficit,
-            name: point.kcal > 0 ? 'cumulative surplus' : 'cumulative deficit',
-            value: `${fmtSignedInt(point.kcal)} kcal`,
-          },
-          {
-            name: 'equivalent body mass',
-            value: fmtWeightDelta(point.kcal / KCAL_PER_KG, settings.unit, { places: 2 }),
-          },
-        ],
-      });
+            name: againstMaintenance ? 'maintenance that day' : 'target that day',
+            value: fmtInt(day.baseline),
+          }
+        );
+      }
+      tooltip.show(x, yScale(point.kcal), { title: tooltipDate(point.iso), rows });
     },
     onClear: () => tooltip.hide(),
   });
@@ -122,9 +138,10 @@ export function drawBalanceChart({ width, props, tooltip }) {
   return root;
 }
 
-export function renderBalanceLegend(container) {
+export function renderBalanceLegend(container, basis = 'target') {
+  const against = basis === 'maintenance' ? 'maintenance' : 'target';
   renderLegend(container, [
-    { kind: 'rect', color: token('--series-1'), label: 'Cumulative deficit (below 0)' },
-    { kind: 'rect', color: token('--series-over'), label: 'Cumulative surplus (above 0)' },
+    { kind: 'rect', color: token('--series-1'), label: `Cumulative deficit vs ${against} (below 0)` },
+    { kind: 'rect', color: token('--series-over'), label: `Cumulative surplus vs ${against} (above 0)` },
   ]);
 }

@@ -3,12 +3,15 @@
    here. Every function is pure: it returns a new normalized value and never
    mutates its argument. */
 
+import { todayISO } from '../format.js';
 import {
+  ACTIVITY_KEYS,
   DEFAULT_SETTINGS,
   MAX_CALORIES,
   MAX_FOOD_NAME_LENGTH,
   MAX_FOOD_QUANTITY,
   MAX_FOODS_PER_DAY,
+  MAX_HEIGHT_CM,
   MAX_NOTE_LENGTH,
   MAX_PORTION_GRAMS,
   MAX_PORTION_LENGTH,
@@ -17,9 +20,11 @@ import {
   MAX_YEAR,
   MIN_CALORIES,
   MIN_FOOD_QUANTITY,
+  MIN_HEIGHT_CM,
   MIN_TARGET,
   MIN_WEIGHT_KG,
   MIN_YEAR,
+  SEXES,
   UNITS,
   WEEKDAY_NAMES,
   WEEKDAY_TARGET_FIELDS,
@@ -39,6 +44,10 @@ export const FIELD_LABELS = {
   default_calorie_target: 'Daily calorie target',
   goal_weight_kg: 'Goal weight in kilograms',
   goal_date: 'Goal date',
+  height_cm: 'Height in centimetres',
+  birth_date: 'Date of birth',
+  sex: 'Sex',
+  activity_level: 'Activity level',
   from: 'Range start',
   to: 'Range end',
   ...Object.fromEntries(
@@ -126,6 +135,28 @@ function validateNote(value, field = 'note') {
     throw new ValidationError(`Note must be ${MAX_NOTE_LENGTH} characters or fewer.`, field);
   }
   return text;
+}
+
+/* A date of birth, which an age is counted from. A date in the future would
+   give a negative age and a nonsense estimate, so it is refused here rather
+   than quietly producing one. */
+function validateBirthDate(value, field = 'birth_date') {
+  const birth = validateDate(value, field);
+  if (birth > todayISO()) {
+    throw new ValidationError('Date of birth must not be in the future.', field);
+  }
+  return birth;
+}
+
+function validateChoice(value, field, choices) {
+  if (typeof value !== 'string') {
+    throw new ValidationError(`${label(field)} must be a string.`, field);
+  }
+  const choice = value.trim().toLowerCase();
+  if (!choices.includes(choice)) {
+    throw new ValidationError(`${label(field)} must be one of: ${choices.join(', ')}.`, field);
+  }
+  return choice;
 }
 
 function validateUnit(value, field = 'unit') {
@@ -247,6 +278,10 @@ const SETTINGS_FIELDS = {
   default_calorie_target: (v) => validateInt(v, 'default_calorie_target', MIN_TARGET, MAX_TARGET),
   goal_weight_kg: (v) => validateFloat(v, 'goal_weight_kg', MIN_WEIGHT_KG, MAX_WEIGHT_KG),
   goal_date: (v) => validateDate(v, 'goal_date'),
+  height_cm: (v) => validateFloat(v, 'height_cm', MIN_HEIGHT_CM, MAX_HEIGHT_CM),
+  birth_date: validateBirthDate,
+  sex: (v) => validateChoice(v, 'sex', SEXES),
+  activity_level: (v) => validateChoice(v, 'activity_level', ACTIVITY_KEYS),
   // Bind the field name, so a rejected value names the weekday it came from.
   ...Object.fromEntries(
     WEEKDAY_TARGET_FIELDS.map((field) => [field, (v) => validateInt(v, field, MIN_TARGET, MAX_TARGET)]),
@@ -263,6 +298,10 @@ const NULLABLE = new Set([
   'foods',
   'goal_weight_kg',
   'goal_date',
+  'height_cm',
+  'birth_date',
+  'sex',
+  'activity_level',
   ...WEEKDAY_TARGET_FIELDS,
 ]);
 

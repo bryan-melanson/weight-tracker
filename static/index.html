@@ -156,7 +156,7 @@
       <ul class="food-items" id="food-items" aria-label="Foods on this day"></ul>
       <p class="field__hint food-card__source">
         Calories per 100 g from USDA FoodData Central, searched on this device.
-        <span class="app-version">App version <span id="app-version">v9</span>.</span>
+        <span class="app-version">App version <span id="app-version">v10</span>.</span>
       </p>
     </section>
 
@@ -220,6 +220,47 @@
         <button type="submit" class="btn btn--primary">Save targets</button>
       </div>
     </form>
+
+    <!-- The profile behind the maintenance estimate. The running calorie
+         balance measures each day against that estimate once this is filled
+         in, and against the targets above until then. -->
+    <form class="card" id="profile-form" novalidate>
+      <h2 class="card__title">Profile <span class="field__hint">for the maintenance estimate</span></h2>
+      <div class="field-grid">
+        <p class="field">
+          <label for="setting-height">Height (<span class="height-unit-label">in</span>)</label>
+          <input type="number" id="setting-height" name="height" step="0.5" min="0" inputmode="decimal">
+        </p>
+        <p class="field">
+          <label for="setting-birth-date">Date of birth</label>
+          <input type="date" id="setting-birth-date" name="birth_date">
+        </p>
+        <p class="field">
+          <label for="setting-sex">Sex</label>
+          <select id="setting-sex" name="sex">
+            <option value="">Not set</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </p>
+      </div>
+      <p class="field">
+        <label for="setting-activity">Activity, apart from the exercise you log</label>
+        <select id="setting-activity" name="activity_level"></select>
+      </p>
+      <p class="estimate" id="profile-estimate" aria-live="polite"></p>
+      <p class="field__hint profile__note">
+        Maintenance is estimated with Mifflin-St Jeor from your weight, height,
+        age and sex, times the activity level above. Exercise you log is already
+        taken off each day's intake, so pick the level that describes the rest of
+        your day — otherwise a workout is counted twice. It is a population
+        average, not a measurement: if your weight trend disagrees with it over a
+        few weeks, trust the trend.
+      </p>
+      <div class="card__actions">
+        <button type="submit" class="btn btn--primary">Save profile</button>
+      </div>
+    </form>
   </section>
 
 
@@ -258,7 +299,7 @@
     <figure class="chart-card" id="chart-balance">
       <figcaption>
         <h2 class="chart-card__title">Running calorie balance</h2>
-        <p class="chart-card__sub">Sum of each day's intake, less exercise, minus that day's target. Below zero is a deficit.</p>
+        <p class="chart-card__sub"></p>
       </figcaption>
       <div class="chart-card__legend"></div>
       <div class="chart-card__plot"></div>

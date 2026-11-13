@@ -26,6 +26,10 @@ FIELD_LABELS = {
     "default_calorie_target": "Daily calorie target",
     "goal_weight_kg": "Goal weight in kilograms",
     "goal_date": "Goal date",
+    "height_cm": "Height in centimetres",
+    "birth_date": "Date of birth",
+    "sex": "Sex",
+    "activity_level": "Activity level",
     "from": "Range start",
     "to": "Range end",
     **{
@@ -104,6 +108,25 @@ def _validate_note(value, field: str = "note") -> str:
     if len(text) > config.MAX_NOTE_LENGTH:
         raise ValidationError(f"Note must be {config.MAX_NOTE_LENGTH} characters or fewer.", field)
     return text
+
+
+def _validate_birth_date(value, field: str = "birth_date") -> str:
+    """A date of birth, which an age is counted from. A date in the future
+    would give a negative age and a nonsense estimate, so it is refused here
+    rather than quietly producing one."""
+    birth = validate_date(value, field)
+    if birth > date_cls.today().isoformat():
+        raise ValidationError("Date of birth must not be in the future.", field)
+    return birth
+
+
+def _validate_choice(value, field: str, choices: tuple[str, ...]) -> str:
+    if not isinstance(value, str):
+        raise ValidationError(f"{label(field)} must be a string.", field)
+    choice = value.strip().lower()
+    if choice not in choices:
+        raise ValidationError(f"{label(field)} must be one of: {', '.join(choices)}.", field)
+    return choice
 
 
 def _validate_unit(value, field: str = "unit") -> str:
@@ -246,6 +269,10 @@ _SETTINGS_FIELDS = {
         v, "goal_weight_kg", config.MIN_WEIGHT_KG, config.MAX_WEIGHT_KG
     ),
     "goal_date": lambda v: validate_date(v, "goal_date"),
+    "height_cm": lambda v: _validate_float(v, "height_cm", config.MIN_HEIGHT_CM, config.MAX_HEIGHT_CM),
+    "birth_date": _validate_birth_date,
+    "sex": lambda v: _validate_choice(v, "sex", config.SEXES),
+    "activity_level": lambda v: _validate_choice(v, "activity_level", config.ACTIVITY_KEYS),
     **{field: _target_validator(field) for field in config.WEEKDAY_TARGET_FIELDS},
 }
 
@@ -260,6 +287,10 @@ _NULLABLE = frozenset(
         "foods",
         "goal_weight_kg",
         "goal_date",
+        "height_cm",
+        "birth_date",
+        "sex",
+        "activity_level",
         *config.WEEKDAY_TARGET_FIELDS,
     }
 )

@@ -9,18 +9,31 @@ import { offerFile } from './download.js';
 import { ensurePersisted } from './persistence.js';
 import { registerServiceWorker } from './pwa.js';
 import {
+  HEIGHT_UNIT,
   UNIT_STEP,
   WEEKDAYS,
   addDays,
   fmtDateLong,
+  fmtHeight,
   fmtInt,
   fmtWeight,
   roundTo,
+  toDisplayHeight,
   toDisplayWeight,
+  toHeightCm,
   toKg,
   todayISO,
 } from './format.js';
 import { renderKpis } from './kpis.js';
+import {
+  ACTIVITY_LEVELS,
+  DEFAULT_ACTIVITY_LEVEL,
+  activityShortLabel,
+  ageOn,
+  maintenanceProfile,
+  restingKcal,
+  weightLookup,
+} from './maintenance.js';
 import { WEEKLY_THRESHOLD_DAYS, caloriePoints, inRange, summarize, targetForDate } from './stats.js';
 import { renderTable } from './table.js';
 import { mountChart, token } from './charts/core.js';
@@ -110,6 +123,9 @@ function renderRangeFilter() {
 function syncUnitLabels() {
   const unit = state.settings.unit;
   document.querySelectorAll('.unit-label').forEach((node) => { node.textContent = unit; });
+  document.querySelectorAll('.height-unit-label').forEach((node) => {
+    node.textContent = HEIGHT_UNIT[unit];
+  });
   const step = String(UNIT_STEP[unit]);
   $('#entry-weight').step = step;
   $('#setting-goal-weight').step = step;
@@ -141,6 +157,37 @@ function exerciseNote(summary) {
   return ` Exercise logged on ${summary.burnDays} day${summary.burnDays === 1 ? '' : 's'}${average}, already netted out above.`;
 }
 
+/* What the running balance is summed against, named in the chart's own words.
+   Measuring against estimated maintenance makes the total an estimated energy
+   deficit; measuring against the targets makes it an adherence score. */
+function balanceSubtitle(summary, settings) {
+  if (summary.balanceBasis !== 'maintenance') {
+    return "Sum of each day's intake, less exercise, minus that day's target. Below zero is a deficit.";
+  }
+  const level = activityShortLabel(settings.activity_level).toLowerCase();
+  return `Sum of each day's intake, less exercise, minus the maintenance level estimated for that day — ${level}, from the weight you were carrying then. Below zero is a deficit.`;
+}
+
+function balanceNote(summary) {
+  if (summary.netKg === null) return '';
+  const parts = [];
+  const average = summary.avgBalanceDiff;
+  if (summary.balanceBasis === 'maintenance' && average !== null) {
+    const side = average > 0 ? 'above' : 'below';
+    parts.push(
+      `Averaging ${fmtInt(Math.abs(average))} kcal/day ${side} the estimate. Maintenance is an` +
+        ' estimate, so this total is one too — the weight trend above is the measurement to check' +
+        ' it against.'
+    );
+  }
+  parts.push(
+    summary.burnDays
+      ? `Exercise counts only on the ${summary.burnDays} day${summary.burnDays === 1 ? '' : 's'} you logged it, and nothing estimates the rest, so treat the body-mass equivalent as a rough guide.`
+      : 'No exercise is logged in this range, so nothing is netted out of intake — treat the body-mass equivalent as a rough guide.'
+  );
+  return parts.join(' ');
+}
+
 /* The one line that says where the data lives. Redrawn whenever the backup
    state changes as well as on every render, so it never claims the data is
    device-only after a backup has been switched on. */
@@ -163,6 +210,7 @@ function render() {
   renderSubtitle();
 
   renderKpis($('#kpis'), summary, settings, range.option.short.toLowerCase() === 'all' ? 'all time' : range.option.short);
+  renderProfileEstimate();
 
   const goalDrawn = goalFitsView(summary.weights, settings.goal_weight_kg);
   renderWeightLegend($('#chart-weight .chart-card__legend'), settings, goalDrawn);
@@ -182,13 +230,16 @@ function render() {
     : `${summary.calories.length} day${summary.calories.length === 1 ? '' : 's'} with calories logged, averaging ${fmtInt(Math.abs(summary.avgDiff))} kcal ${summary.avgDiff > 0 ? 'over' : 'under'} target per day.${exerciseNote(summary)}`;
   charts.calories.refresh({ points: series.points, weekly: series.weekly, settings, range });
 
-  renderBalanceLegend($('#chart-balance .chart-card__legend'));
-  $('#chart-balance .chart-card__note').textContent = summary.netKg === null
-    ? ''
-    : summary.burnDays
-      ? `Exercise counts only on the ${summary.burnDays} day${summary.burnDays === 1 ? '' : 's'} you logged it, and nothing estimates the rest, so treat the body-mass equivalent as a rough guide.`
-      : `No exercise logged in this range, so this counts intake against target alone — treat the body-mass equivalent as a rough guide.`;
-  charts.balance.refresh({ balance: summary.balance, settings, range });
+  renderBalanceLegend($('#chart-balance .chart-card__legend'), summary.balanceBasis);
+  $('#chart-balance .chart-card__sub').textContent = balanceSubtitle(summary, settings);
+  $('#chart-balance .chart-card__note').textContent = balanceNote(summary);
+  charts.balance.refresh({
+    balance: summary.balance,
+    deficits: summary.deficits,
+    basis: summary.balanceBasis,
+    settings,
+    range,
+  });
 
   renderTable($('#entries-table tbody'), summary.scoped, settings, { onEdit: loadEntryIntoForm, onDelete: deleteEntry });
 }
@@ -209,6 +260,76 @@ function fillTargetsForm() {
     // A blank weekday follows the default, so show which number that is.
     input.placeholder = String(settings.default_calorie_target);
   });
+}
+
+function fillActivityOptions() {
+  $('#setting-activity').replaceChildren(
+    ...ACTIVITY_LEVELS.map((level) => {
+      const option = document.createElement('option');
+      option.value = level.key;
+      option.textContent = level.label;
+      return option;
+    })
+  );
+}
+
+function fillProfileForm() {
+  const settings = state.settings;
+  const unit = settings.unit;
+  $('#setting-height').value =
+    (settings.height_cm ?? null) === null ? '' : roundTo(toDisplayHeight(settings.height_cm, unit), 1);
+  $('#setting-birth-date').value = settings.birth_date || '';
+  $('#setting-sex').value = settings.sex || '';
+  // An unset level reads as the default, which is what the estimate uses too.
+  $('#setting-activity').value = settings.activity_level || DEFAULT_ACTIVITY_LEVEL;
+  $('#setting-birth-date').max = todayISO();
+}
+
+/* The estimate as it stands, under the fields that feed it: the numbers going
+   in, so a wrong one is visible, and what is still missing when it cannot be
+   made at all. It is about today rather than about the selected range, so it
+   reads from the latest weight logged however far back that is. */
+function renderProfileEstimate() {
+  const settings = state.settings;
+  const node = $('#profile-estimate');
+  const profile = maintenanceProfile(settings);
+  if (!profile) {
+    const missing = [
+      (settings.height_cm ?? null) === null ? 'height' : null,
+      settings.birth_date ? null : 'date of birth',
+      settings.sex ? null : 'sex',
+    ].filter(Boolean);
+    node.textContent =
+      `Add ${andList(missing)} to estimate your maintenance level. ` +
+      'Until then the running balance measures against your targets.';
+    return;
+  }
+  const today = todayISO();
+  const kg = weightLookup(state.entries).at(today);
+  if (kg === null) {
+    node.textContent = 'Log a weight and the estimate appears here.';
+    return;
+  }
+  const age = ageOn(today, profile.birthDate);
+  const resting = restingKcal({ kg, heightCm: profile.heightCm, ageYears: age, sex: profile.sex });
+  node.replaceChildren(
+    document.createTextNode('Maintenance ≈ '),
+    Object.assign(document.createElement('strong'), {
+      textContent: `${fmtInt(resting * profile.factor)} kcal/day`,
+    }),
+    document.createTextNode(
+      ` — ${fmtInt(resting)} at rest × ${profile.factor} for ` +
+        `${activityShortLabel(profile.level).toLowerCase()}, at ${fmtWeight(kg, settings.unit)}, ` +
+        `${fmtHeight(profile.heightCm, settings.unit)}, age ${age}.`
+    )
+  );
+}
+
+/* "height and sex", "height, date of birth and sex": a list to read, not a
+   row of commas. */
+function andList(items) {
+  if (items.length < 2) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
 function entryFor(date) {
@@ -285,6 +406,7 @@ function syncFormToDate() {
 const FIELD_TO_INPUT = {
   weight_kg: 'weight',
   goal_weight_kg: 'goal_weight',
+  height_cm: 'height',
   default_calorie_target: 'default_calorie_target',
   calorie_target: 'calorie_target',
 };
@@ -315,15 +437,18 @@ function markField(form, field) {
 let currentTurn = 0;
 let entryEdits = 0;
 let targetEdits = 0;
+let profileEdits = 0;
 
 function beginAction() {
   const turn = (currentTurn += 1);
   const entry = entryEdits;
   const targets = targetEdits;
+  const profile = profileEdits;
   return {
     isCurrent: () => turn === currentTurn,
     entryUntouched: () => entry === entryEdits,
     targetsUntouched: () => targets === targetEdits,
+    profileUntouched: () => profile === profileEdits,
   };
 }
 
@@ -393,6 +518,20 @@ function onTargetsSubmit(event) {
   withErrors(form, () => api.saveSettings(patch), 'Targets saved.');
 }
 
+function onProfileSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const unit = state.settings.unit;
+  const heightInput = $('#setting-height').value;
+  const patch = {
+    height_cm: heightInput === '' ? null : toHeightCm(heightInput, unit),
+    birth_date: blankToNull($('#setting-birth-date').value),
+    sex: blankToNull($('#setting-sex').value),
+    activity_level: $('#setting-activity').value,
+  };
+  withErrors(form, () => api.saveSettings(patch), 'Profile saved.');
+}
+
 async function deleteEntry(entry) {
   const label = fmtDateLong(entry.date);
   if (!window.confirm(`Delete the entry for ${label}? This cannot be undone.`)) return;
@@ -459,9 +598,15 @@ function toggleTheme() {
 
 async function reload(turn = null) {
   const data = await api.getState();
+  // A changed unit changes what the numbers already in the forms mean, so
+  // those two forms are refilled even if they were being typed in: leaving a
+  // height in inches sitting in a field now labelled cm would save a wrong
+  // value the next time that form is submitted.
+  const unitChanged = Boolean(state.settings) && state.settings.unit !== data.settings.unit;
   state.settings = data.settings;
   state.entries = data.entries;
-  if (!turn || turn.targetsUntouched()) fillTargetsForm();
+  if (!turn || unitChanged || turn.targetsUntouched()) fillTargetsForm();
+  if (!turn || unitChanged || turn.profileUntouched()) fillProfileForm();
   if (!turn || turn.entryUntouched()) syncFormToDate();
   syncCaloriesField();
   render();
@@ -471,8 +616,10 @@ async function reload(turn = null) {
 function wireEvents() {
   $('#entry-form').addEventListener('submit', onEntrySubmit);
   $('#targets-form').addEventListener('submit', onTargetsSubmit);
+  $('#profile-form').addEventListener('submit', onProfileSubmit);
   $('#entry-form').addEventListener('input', () => { entryEdits += 1; });
   $('#targets-form').addEventListener('input', () => { targetEdits += 1; });
+  $('#profile-form').addEventListener('input', () => { profileEdits += 1; });
   $('#entry-date').addEventListener('change', syncFormToDate);
   $('#entry-delete').addEventListener('click', () => {
     const entry = entryFor($('#entry-date').value);
@@ -492,6 +639,7 @@ async function boot() {
   applyTheme(localStorage.getItem(THEME_KEY));
   $('#entry-date').max = todayISO();
   $('#entry-date').value = todayISO();
+  fillActivityOptions();
   renderRangeFilter();
   wireEvents();
   backupPanel = mountBackupPanel({ service: backup, onDataChanged: dataChanged, setStatus });

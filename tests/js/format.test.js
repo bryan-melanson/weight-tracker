@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  CM_PER_IN,
+  HEIGHT_UNIT,
   WEEKDAYS,
   weekdayKey,
   weekdayTargetField,
@@ -10,11 +12,14 @@ import {
   daysBetween,
   fmtInt,
   fmtSignedInt,
+  fmtHeight,
   fmtWeight,
   fmtWeightDelta,
   parseISO,
   roundTo,
+  toDisplayHeight,
   toDisplayWeight,
+  toHeightCm,
   toISO,
   toKg,
 } from '../../static/js/format.js';
@@ -52,6 +57,39 @@ describe('weight units', () => {
     assert.equal(fmtWeightDelta(-1.25, 'kg'), '−1.3 kg');
     assert.equal(fmtWeightDelta(1.25, 'kg'), '+1.3 kg');
     assert.equal(fmtWeightDelta(0, 'kg'), '0.0 kg');
+  });
+});
+
+describe('height units', () => {
+  it('goes with the weight unit', () => {
+    assert.equal(HEIGHT_UNIT.lb, 'in');
+    assert.equal(HEIGHT_UNIT.kg, 'cm');
+  });
+
+  it('passes centimetres through unchanged', () => {
+    assert.equal(toDisplayHeight(178, 'kg'), 178);
+    assert.equal(toHeightCm(178, 'kg'), 178);
+  });
+
+  it('converts to and from inches', () => {
+    assert.equal(toHeightCm(70, 'lb'), 70 * CM_PER_IN);
+    assert.ok(Math.abs(toDisplayHeight(177.8, 'lb') - 70) < 1e-9);
+  });
+
+  it('round-trips through inches without drift', () => {
+    assert.ok(Math.abs(toHeightCm(toDisplayHeight(178, 'lb'), 'lb') - 178) < 1e-9);
+  });
+
+  it('treats blank and non-numeric input as absent', () => {
+    for (const value of ['', null, undefined, 'tall']) assert.equal(toHeightCm(value, 'lb'), null);
+    assert.equal(toDisplayHeight(null, 'lb'), null);
+  });
+
+  it('says a height the way the reader says it', () => {
+    assert.equal(fmtHeight(177.8, 'lb'), '5′10″');
+    assert.equal(fmtHeight(182.88, 'lb'), '6′0″');
+    assert.equal(fmtHeight(178, 'kg'), '178 cm');
+    assert.equal(fmtHeight(null, 'lb'), '—');
   });
 });
 

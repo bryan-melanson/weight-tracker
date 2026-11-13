@@ -1,3 +1,5 @@
+from datetime import date as date_cls
+
 import pytest
 
 from tracker import config
@@ -136,6 +138,76 @@ class TestValidateSettingsPatch:
     def test_rejects_unknown_field(self):
         with pytest.raises(ValidationError):
             validate_settings_patch({"admin": True})
+
+
+class TestValidateProfileFields:
+    """The profile behind the maintenance estimate: height, date of birth, sex
+    and activity level."""
+
+    def test_normalizes_fields(self):
+        out = validate_settings_patch(
+            {"height_cm": "178", "birth_date": "1986-04-02", "sex": "Male", "activity_level": "LIGHT"}
+        )
+        assert out == {
+            "height_cm": 178.0,
+            "birth_date": "1986-04-02",
+            "sex": "male",
+            "activity_level": "light",
+        }
+
+    def test_every_field_is_nullable(self):
+        out = validate_settings_patch(
+            {"height_cm": "", "birth_date": None, "sex": "", "activity_level": None}
+        )
+        assert out == {"height_cm": None, "birth_date": None, "sex": None, "activity_level": None}
+
+    @pytest.mark.parametrize("bad", [0, 49, 281, "tall", True])
+    def test_rejects_an_implausible_height(self, bad):
+        with pytest.raises(ValidationError):
+            validate_settings_patch({"height_cm": bad})
+
+    def test_height_message_states_the_unit(self):
+        with pytest.raises(ValidationError) as exc:
+            validate_settings_patch({"height_cm": 10})
+        assert "centimetres" in str(exc.value)
+        assert exc.value.field == "height_cm"
+
+    def test_rejects_a_birth_date_in_the_future(self):
+        """A future date of birth would give a negative age and an estimate
+        built on it, which is worse than refusing the value."""
+        future = date_cls.today().replace(year=date_cls.today().year + 1).isoformat()
+        with pytest.raises(ValidationError) as exc:
+            validate_settings_patch({"birth_date": future})
+        assert "must not be in the future" in str(exc.value)
+        assert exc.value.field == "birth_date"
+
+    def test_accepts_a_birth_date_of_today(self):
+        today = date_cls.today().isoformat()
+        assert validate_settings_patch({"birth_date": today}) == {"birth_date": today}
+
+    @pytest.mark.parametrize("bad", ["m", "other", "man", 1, True])
+    def test_rejects_a_sex_outside_the_formula(self, bad):
+        """Mifflin-St Jeor is defined for two constants, so anything else has
+        no value to put into it."""
+        with pytest.raises(ValidationError):
+            validate_settings_patch({"sex": bad})
+
+    def test_accepts_a_sex_in_any_case(self):
+        assert validate_settings_patch({"sex": " FEMALE "}) == {"sex": "female"}
+
+    def test_sex_message_lists_the_options(self):
+        with pytest.raises(ValidationError) as exc:
+            validate_settings_patch({"sex": "unknown"})
+        assert str(exc.value) == "Sex must be one of: male, female."
+
+    @pytest.mark.parametrize("bad", ["athlete", "very active", 2])
+    def test_rejects_an_unknown_activity_level(self, bad):
+        with pytest.raises(ValidationError):
+            validate_settings_patch({"activity_level": bad})
+
+    def test_accepts_every_activity_level(self):
+        for key in config.ACTIVITY_KEYS:
+            assert validate_settings_patch({"activity_level": key}) == {"activity_level": key}
 
 
 class TestErrorMessages:

@@ -97,15 +97,20 @@ function exerciseTile(summary) {
   });
 }
 
+/* The balance is measured against estimated maintenance once the profile
+   allows it and against the calorie targets until then, so the label says
+   which — the same number means two different things. */
 function balanceTile(summary, settings) {
+  const against = summary.balanceBasis === 'maintenance' ? 'maintenance' : 'target';
+  const label = `Running balance vs ${against}`;
   if (summary.netKcal === null) {
-    return tile({ label: 'Running balance', value: EMPTY, delta: 'No calories logged in range' });
+    return tile({ label, value: EMPTY, delta: 'No calories logged in range' });
   }
-  return tile({
-    label: 'Running balance',
-    value: `${fmtSignedInt(summary.netKcal)} kcal`,
-    delta: `≈ ${fmtWeightDelta(summary.netKg, settings.unit, { places: 2 })} at ${KCAL_PER_KG.toLocaleString()} kcal/kg`,
-  });
+  const mass = `≈ ${fmtWeightDelta(summary.netKg, settings.unit, { places: 2 })}`;
+  const detail = summary.maintenance === null
+    ? `at ${KCAL_PER_KG.toLocaleString()} kcal/kg`
+    : `maintenance ≈ ${fmtInt(summary.maintenance)} kcal/day`;
+  return tile({ label, value: `${fmtSignedInt(summary.netKcal)} kcal`, delta: `${mass} · ${detail}` });
 }
 
 export function renderKpis(container, summary, settings, rangeLabel) {

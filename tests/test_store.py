@@ -36,6 +36,28 @@ class TestSettings:
         finally:
             b.close()
 
+    def test_profile_fields_default_to_none(self, store):
+        settings = store.get_settings()
+        for field in config.PROFILE_FIELDS:
+            assert settings[field] is None
+
+    def test_profile_survives_reopen(self, tmp_path):
+        path = tmp_path / "profile.db"
+        a = Store(path)
+        a.update_settings(
+            {"height_cm": 178.0, "birth_date": "1986-04-02", "sex": "male", "activity_level": "light"}
+        )
+        a.close()
+        b = Store(path)
+        try:
+            settings = b.get_settings()
+            assert settings["height_cm"] == 178.0
+            assert settings["birth_date"] == "1986-04-02"
+            assert settings["sex"] == "male"
+            assert settings["activity_level"] == "light"
+        finally:
+            b.close()
+
     def test_update_merges_patch(self, store):
         store.update_settings({"unit": "kg"})
         updated = store.update_settings({"goal_weight_kg": 75.0})
@@ -87,6 +109,39 @@ class TestMigration:
             assert settings["unit"] == "kg", "an older choice of unit is not overwritten by the new default"
             assert settings["calorie_target_mon"] is None
             assert store.update_settings({"calorie_target_mon": 1750})["calorie_target_mon"] == 1750
+        finally:
+            store.close()
+
+    def test_adds_the_maintenance_profile_to_an_older_database(self, tmp_path):
+        """A database from before the profile existed opens with the columns
+        added and unset, which is what makes the running balance fall back to
+        the calorie targets for it."""
+        path = tmp_path / "v4.db"
+        legacy = sqlite3.connect(path)
+        legacy.executescript(
+            """
+            CREATE TABLE settings (
+                id                      INTEGER PRIMARY KEY CHECK (id = 1),
+                unit                    TEXT    NOT NULL,
+                default_calorie_target  INTEGER NOT NULL,
+                goal_weight_kg          REAL,
+                goal_date               TEXT
+            );
+            INSERT INTO settings (id, unit, default_calorie_target) VALUES (1, 'lb', 2200);
+            """
+        )
+        legacy.commit()
+        legacy.close()
+
+        store = Store(path)
+        try:
+            settings = store.get_settings()
+            assert settings["default_calorie_target"] == 2200, "the existing target must survive"
+            for field in config.PROFILE_FIELDS:
+                assert settings[field] is None
+            saved = store.update_settings({"height_cm": 180.0, "sex": "female"})
+            assert saved["height_cm"] == 180.0
+            assert saved["sex"] == "female"
         finally:
             store.close()
 

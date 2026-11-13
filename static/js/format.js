@@ -1,9 +1,14 @@
 /* Units, numbers and dates. Pure functions only. */
 
 export const LB_PER_KG = 2.2046226218;
+export const CM_PER_IN = 2.54;
 export const KCAL_PER_KG = 7700;
 
 export const UNIT_STEP = { kg: 0.1, lb: 0.2 };
+
+/* Height is stored in centimetres and shown in whatever goes with the weight
+   unit: inches alongside pounds, centimetres alongside kilograms. */
+export const HEIGHT_UNIT = { kg: 'cm', lb: 'in' };
 
 export function toDisplayWeight(kg, unit) {
   if (kg === null || kg === undefined) return null;
@@ -15,6 +20,27 @@ export function toKg(value, unit) {
   const number = Number(value);
   if (!Number.isFinite(number)) return null;
   return unit === 'lb' ? number / LB_PER_KG : number;
+}
+
+export function toDisplayHeight(cm, unit) {
+  if (cm === null || cm === undefined) return null;
+  return unit === 'lb' ? cm / CM_PER_IN : cm;
+}
+
+export function toHeightCm(value, unit) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return unit === 'lb' ? number * CM_PER_IN : number;
+}
+
+/* Feet and inches for a pounds reader, centimetres for a kilograms one: 178
+   is a height, 5′10″ is the same height as it is usually said. */
+export function fmtHeight(cm, unit) {
+  if (cm === null || cm === undefined) return '—';
+  if (unit !== 'lb') return `${roundTo(cm, 1)} cm`;
+  const inches = Math.round(cm / CM_PER_IN);
+  return `${Math.floor(inches / 12)}′${inches % 12}″`;
 }
 
 export function roundTo(value, places) {

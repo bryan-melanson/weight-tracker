@@ -1,6 +1,7 @@
 /* Derived metrics. Pure functions over the entry list — no DOM, no state. */
 
-import { KCAL_PER_KG, addDays, daysBetween, parseISO, toISO, weekdayTargetField } from './format.js';
+import { KCAL_PER_KG, addDays, daysBetween, parseISO, toISO, todayISO, weekdayTargetField } from './format.js';
+import { maintenanceOn, maintenanceProfile, weightLookup } from './maintenance.js';
 
 export const TREND_WINDOW_DAYS = 7;
 const PROJECTION_WINDOW_DAYS = 28;
@@ -84,6 +85,47 @@ export function trailingAverage(points, windowDays = TREND_WINDOW_DAYS) {
   });
 }
 
+/* What the running balance measures a day against.
+
+   A calorie target is a plan — what you meant to eat. Maintenance is an
+   estimate of what the day actually costs you, so measuring intake against it
+   turns the running total into an estimated deficit rather than an adherence
+   score. It is used whenever the profile allows it: that needs height, date of
+   birth and sex (see maintenance.js) and at least one logged weight to put
+   into the formula. Short of either, the targets remain the baseline, and
+   every caller reads `kind` to say which of the two is on screen.
+
+   The lookup is built from every entry, not just the ones in view, so a
+   weight logged before the range still informs the days inside it. */
+export function balanceBasis(entries, settings) {
+  const profile = maintenanceProfile(settings);
+  const lookup = weightLookup(entries);
+  if (!profile || !lookup.any) return { kind: 'target' };
+  return { kind: 'maintenance', profile, lookup };
+}
+
+/* The days the running balance is summed from: intake net of exercise against
+   that baseline. `target` stays on each point, so a maintenance-based view can
+   still show the day's target in a tooltip. */
+export function balancePoints(entries, settings, basis = null) {
+  const resolved = basis || balanceBasis(entries, settings);
+  return caloriePoints(entries, settings).map((point) => {
+    const baseline = resolved.kind === 'maintenance'
+      ? maintenanceOn(resolved.profile, resolved.lookup.at(point.iso), point.iso)
+      : point.target;
+    return { ...point, baseline, diff: point.net - baseline };
+  });
+}
+
+/* Today's maintenance estimate, from the most recent weight logged. Null
+   until there is a profile and a weight to put into it. */
+export function maintenanceNow(entries, settings, basis = null) {
+  const resolved = basis || balanceBasis(entries, settings);
+  if (resolved.kind !== 'maintenance') return null;
+  const today = todayISO();
+  return maintenanceOn(resolved.profile, resolved.lookup.at(today), today);
+}
+
 export function cumulativeBalance(points) {
   let running = 0;
   return points.map((point) => {
@@ -136,7 +178,9 @@ export function summarize(entries, settings, range) {
   const weights = weightPoints(scoped);
   const calories = caloriePoints(scoped, settings);
   const exercise = exercisePoints(scoped);
-  const balance = cumulativeBalance(calories);
+  const basis = balanceBasis(entries, settings);
+  const deficits = balancePoints(scoped, settings, basis);
+  const balance = cumulativeBalance(deficits);
   const recent = lastNDays(calories, TREND_WINDOW_DAYS);
   const current = weights.length ? weights[weights.length - 1] : null;
   const first = weights.length ? weights[0] : null;
@@ -148,12 +192,16 @@ export function summarize(entries, settings, range) {
     weights,
     calories,
     exercise,
+    deficits,
     balance,
+    balanceBasis: basis.kind,
+    maintenance: maintenanceNow(entries, settings, basis),
     current,
     changeKg: current && first && weights.length > 1 ? current.kg - first.kg : null,
     goalRemainingKg: current && goalKg !== null ? goalKg - current.kg : null,
     avgCalories: mean(recent.map((point) => point.calories)),
     avgDiff: mean(calories.map((point) => point.diff)),
+    avgBalanceDiff: mean(deficits.map((point) => point.diff)),
     avgBurned: mean(exercise.map((point) => point.burned)),
     totalBurned: exercise.reduce((sum, point) => sum + point.burned, 0),
     burnDays: exercise.length,

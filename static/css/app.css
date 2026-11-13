@@ -195,6 +195,13 @@ input:disabled { color: var(--text-secondary); background: var(--surface-sunken)
 
 /* Seven narrow inputs, one per weekday: a week reads left to right on a wide
    card and wraps to two rows on a narrow one. */
+/* The live maintenance estimate under the profile fields, and the note that
+   keeps it honest about being an estimate. */
+.estimate { margin: 0; font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.estimate:empty { display: none; }
+.estimate strong { color: var(--text-primary); font-size: 15px; font-weight: 600; }
+.profile__note { margin: -4px 0 0; font-size: 12px; line-height: 1.45; }
+
 .weekdays { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
 .weekdays legend { padding: 0; font-size: 12px; font-weight: 500; color: var(--text-secondary); }
 .weekdays__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); gap: 8px; margin-top: 6px; }

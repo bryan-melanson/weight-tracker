@@ -31,6 +31,8 @@ MAX_TARGET = 20_000
 MAX_NOTE_LENGTH = 500
 MIN_YEAR = 1900
 MAX_YEAR = 2100
+MIN_HEIGHT_CM = 50.0
+MAX_HEIGHT_CM = 280.0
 
 # The food log: a day's list of items, each a quantity of one portion with the
 # energy of a single portion. A day's calories are their sum whenever it has
@@ -44,6 +46,30 @@ MAX_PORTION_GRAMS = 10_000
 
 UNITS = ("lb", "kg")
 LB_PER_KG = 2.2046226218
+CM_PER_IN = 2.54
+
+# The profile behind the maintenance estimate. Mifflin-St Jeor needs a weight,
+# a height, an age and one of two sex constants; it is defined for those two
+# only, which is why this is not a broader list.
+SEXES = ("male", "female")
+
+# Resting energy times one of these gives maintenance. Logged exercise is
+# netted out of intake separately, so the level to pick is the one describing
+# everything apart from the workouts being logged.
+ACTIVITY_LEVELS = (
+    ("sedentary", 1.2, "Sedentary — desk job, little walking"),
+    ("light", 1.375, "Lightly active — walking most days"),
+    ("moderate", 1.55, "Moderately active — on your feet all day"),
+    ("very", 1.725, "Very active — physical job"),
+    ("extra", 1.9, "Extremely active — heavy physical job"),
+)
+ACTIVITY_KEYS = tuple(key for key, _factor, _label in ACTIVITY_LEVELS)
+ACTIVITY_FACTORS = {key: factor for key, factor, _label in ACTIVITY_LEVELS}
+DEFAULT_ACTIVITY_LEVEL = "sedentary"
+
+# The settings that make up that profile. All four are needed before a
+# maintenance estimate can be made (activity_level falls back to the default).
+PROFILE_FIELDS = ("height_cm", "birth_date", "sex", "activity_level")
 
 # The week, in reading order. Each weekday can carry its own calorie target;
 # a day's target is resolved from the day's own entry first, then from this
@@ -65,6 +91,12 @@ DEFAULT_SETTINGS = {
     "default_calorie_target": 2000,
     "goal_weight_kg": None,
     "goal_date": None,
+    # The maintenance profile. Unset until it is filled in, and the running
+    # balance falls back to the calorie targets until it is.
+    "height_cm": None,
+    "birth_date": None,
+    "sex": None,
+    "activity_level": None,
     # Unset by default: an empty weekday falls back to the default target.
     **{field: None for field in WEEKDAY_TARGET_FIELDS},
 }

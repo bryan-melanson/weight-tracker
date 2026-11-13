@@ -12,7 +12,7 @@ from pathlib import Path
 from . import config
 from .validation import encode_foods, food_total
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (
@@ -21,6 +21,11 @@ CREATE TABLE IF NOT EXISTS settings (
     default_calorie_target  INTEGER NOT NULL,
     goal_weight_kg          REAL,
     goal_date               TEXT,
+    -- The profile behind the maintenance estimate; NULL until it is filled in.
+    height_cm               REAL,
+    birth_date              TEXT,
+    sex                     TEXT,
+    activity_level          TEXT,
     -- One optional target per weekday; NULL means "use the default".
     calorie_target_mon      INTEGER,
     calorie_target_tue      INTEGER,
@@ -49,6 +54,7 @@ _SETTINGS_COLUMNS = (
     "default_calorie_target",
     "goal_weight_kg",
     "goal_date",
+    *config.PROFILE_FIELDS,
     *config.WEEKDAY_TARGET_FIELDS,
 )
 _ENTRY_COLUMNS = ("weight_kg", "calories", "calories_burned", "calorie_target", "note", "foods")
@@ -60,6 +66,10 @@ _ADDED_COLUMNS = (
     ("entries", "calories_burned", "INTEGER"),
     ("entries", "foods", "TEXT"),
     *(("settings", field, "INTEGER") for field in config.WEEKDAY_TARGET_FIELDS),
+    ("settings", "height_cm", "REAL"),
+    ("settings", "birth_date", "TEXT"),
+    ("settings", "sex", "TEXT"),
+    ("settings", "activity_level", "TEXT"),
 )
 
 

@@ -42,6 +42,30 @@ class TestSettingsRoutes:
         _, payload = call(store, "GET", "/api/state")
         assert payload["data"]["settings"]["calorie_target_fri"] == 2200
 
+    def test_put_sets_the_maintenance_profile(self, store):
+        status, payload = call(
+            store,
+            "PUT",
+            "/api/settings",
+            {"height_cm": 178, "birth_date": "1986-04-02", "sex": "male", "activity_level": "light"},
+        )
+        assert status == 200
+        assert payload["data"]["height_cm"] == 178.0
+        assert payload["data"]["birth_date"] == "1986-04-02"
+        assert payload["data"]["sex"] == "male"
+        assert payload["data"]["activity_level"] == "light"
+
+    def test_state_carries_the_maintenance_profile(self, store):
+        store.update_settings({"height_cm": 165.0, "sex": "female"})
+        _, payload = call(store, "GET", "/api/state")
+        assert payload["data"]["settings"]["height_cm"] == 165.0
+        assert payload["data"]["settings"]["sex"] == "female"
+
+    def test_put_rejects_an_unknown_activity_level(self, store):
+        status, payload = call(store, "PUT", "/api/settings", {"activity_level": "athlete"})
+        assert status == 400
+        assert payload["field"] == "activity_level"
+
     def test_put_rejects_invalid(self, store):
         status, payload = call(store, "PUT", "/api/settings", {"unit": "stone"})
         assert status == 400

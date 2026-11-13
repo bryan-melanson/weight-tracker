@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { WEEKDAY_TARGET_FIELDS } from '../../static/js/backend/limits.js';
+import { ACTIVITY_KEYS, WEEKDAY_TARGET_FIELDS } from '../../static/js/backend/limits.js';
+import { todayISO } from '../../static/js/format.js';
 import {
   ValidationError,
   validateDate,
@@ -181,6 +182,75 @@ describe('validateSettingsPatch', () => {
   it('rejects an unknown field', () => {
     throws(() => validateSettingsPatch({ admin: true }), 'admin');
   });
+});
+
+/* The maintenance profile. Each case here has a twin in
+   tests/test_validation.py, which is what keeps the two backends refusing the
+   same values with the same words. */
+describe('validateSettingsPatch: the maintenance profile', () => {
+  it('normalizes the fields', () => {
+    assert.deepEqual(
+      validateSettingsPatch({
+        height_cm: '178',
+        birth_date: '1986-04-02',
+        sex: 'Male',
+        activity_level: 'LIGHT',
+      }),
+      { height_cm: 178, birth_date: '1986-04-02', sex: 'male', activity_level: 'light' },
+    );
+  });
+
+  it('treats every field as nullable', () => {
+    assert.deepEqual(
+      validateSettingsPatch({ height_cm: '', birth_date: null, sex: '', activity_level: null }),
+      { height_cm: null, birth_date: null, sex: null, activity_level: null },
+    );
+  });
+
+  for (const bad of [0, 49, 281, 'tall', true]) {
+    it(`rejects an implausible height ${bad}`, () => {
+      throws(() => validateSettingsPatch({ height_cm: bad }), 'height_cm');
+    });
+  }
+
+  it('states the unit in the height message', () => {
+    const error = throws(() => validateSettingsPatch({ height_cm: 10 }), 'height_cm');
+    assert.match(error.message, /centimetres/);
+  });
+
+  it('rejects a date of birth in the future', () => {
+    const nextYear = `${new Date().getFullYear() + 1}-01-01`;
+    const error = throws(() => validateSettingsPatch({ birth_date: nextYear }), 'birth_date');
+    assert.equal(error.message, 'Date of birth must not be in the future.');
+  });
+
+  it('accepts a date of birth of today', () => {
+    const today = todayISO();
+    assert.deepEqual(validateSettingsPatch({ birth_date: today }), { birth_date: today });
+  });
+
+  for (const bad of ['m', 'other', 'man', 1, true]) {
+    it(`rejects the sex ${bad}, which the formula has no constant for`, () => {
+      throws(() => validateSettingsPatch({ sex: bad }), 'sex');
+    });
+  }
+
+  it('lists the options in the sex message', () => {
+    const error = throws(() => validateSettingsPatch({ sex: 'unknown' }), 'sex');
+    assert.equal(error.message, 'Sex must be one of: male, female.');
+  });
+
+  it('accepts every activity level', () => {
+    for (const key of ACTIVITY_KEYS) {
+      assert.deepEqual(validateSettingsPatch({ activity_level: key }), { activity_level: key });
+    }
+  });
+
+  for (const bad of ['athlete', 'very active', 2]) {
+    it(`rejects the activity level ${bad}`, () => {
+      throws(() => validateSettingsPatch({ activity_level: bad }), 'activity_level');
+    });
+  }
 });
 
 describe('error messages', () => {
