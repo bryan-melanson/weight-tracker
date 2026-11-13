@@ -196,9 +196,9 @@ FoodData Central's ([SR Legacy](https://fdc.nal.usda.gov/) and Foundation
 Foods, public domain): generic foods, not brands, so a packaged product is
 best added from its label as a food that isn't listed.
 
-**Targets** holds your standing settings: weight unit (pounds by default, or
-kilograms), a calorie target for each weekday, a goal weight, and an optional
-target date.
+**Settings** holds your standing settings on two tabs. **Targets**: weight
+unit (pounds by default, or kilograms), a calorie target for each weekday, a
+goal weight, and an optional target date.
 
 Each weekday carries its own target, so a week can run 1,900 on Monday through
 Thursday, 2,100 on Friday and 2,400 at the weekend. A weekday left blank
@@ -212,9 +212,9 @@ specific target it has:
 Changing a weekday's target re-scores every past day that falls on it, since
 nothing is copied onto an entry unless you set it there.
 
-**Profile** holds what the maintenance estimate is worked out from: height,
-date of birth, sex, and how active you are apart from the exercise you log.
-Fill it in and the **running calorie balance** switches from measuring each
+**Profile**, the other tab, holds what the maintenance estimate is worked out
+from: height, date of birth, sex, and how active you are apart from the
+exercise you log. Fill it in and the **running calorie balance** switches from measuring each
 day against your target to measuring it against the calories that day
 actually cost you — the difference between an adherence score and an estimated
 energy deficit. Leave any of height, date of birth or sex unset and the
@@ -247,7 +247,11 @@ height is visible rather than buried in a chart.
 ## What it shows
 
 Everything below the range filter (30 days / 90 days / 1 year / All) is scoped
-to that range.
+to that range. The summary tiles stay on screen; below them the three charts
+and the table share one tabbed panel, so the page is a screen rather than a
+scroll — particularly on a phone, where they were four screens of it. The open
+tab is remembered between visits, and the tab strip takes the arrow keys, Home
+and End.
 
 - **Summary tiles** — current weight and its change over the range, distance to
   goal with a projected date, 7-day average intake against target, average
@@ -318,6 +322,7 @@ static/          the frontend — ES modules, no build step, no CDN
   backend/         validate.js, store.js, csv.js, idb.js, limits.js
   js/format.js     units, numbers, dates
   js/stats.js      derived metrics (trend, balance, projection)
+  js/tabs.js       the tabbed panels: charts and table, targets and profile
   js/maintenance.js the maintenance estimate: Mifflin-St Jeor and activity
   js/charts/       SVG chart engine and the three charts
   js/foods/        catalog.js (search, measures, recents — pure), panel.js (the card)
@@ -413,7 +418,7 @@ node --test "tests/js/*.test.js"   # frontend: units, dates, metrics, backend
 python3 -m pytest --cov=tracker --cov-report=term-missing
 ```
 
-668 tests: 300 for the server and the food-index builder, 368 for the frontend.
+681 tests: 301 for the server and the food-index builder, 380 for the frontend.
 
 The frontend suite covers the ported validation, CSV and store logic against
 an in-memory stand-in for IndexedDB, so it needs no browser and no

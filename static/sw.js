@@ -11,7 +11,7 @@
    behaviour — meant an installed app could sit on a stale cache indefinitely,
    because quitting it is something the person using it has to think to do. */
 
-const CACHE_VERSION = 'v10';
+const CACHE_VERSION = 'v11';
 const CACHE_NAME = `weight-tracker-${CACHE_VERSION}`;
 
 const PRECACHE = [
@@ -29,6 +29,7 @@ const PRECACHE = [
   'js/persistence.js',
   'js/pwa.js',
   'js/stats.js',
+  'js/tabs.js',
   'js/table.js',
   'js/backend/csv.js',
   'js/backend/http.js',

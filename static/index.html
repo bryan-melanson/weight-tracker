@@ -156,111 +156,117 @@
       <ul class="food-items" id="food-items" aria-label="Foods on this day"></ul>
       <p class="field__hint food-card__source">
         Calories per 100 g from USDA FoodData Central, searched on this device.
-        <span class="app-version">App version <span id="app-version">v10</span>.</span>
+        <span class="app-version">App version <span id="app-version">v11</span>.</span>
       </p>
     </section>
 
-    <form class="card" id="targets-form" novalidate>
-      <h2 class="card__title">Targets</h2>
-      <div class="field-grid">
-        <p class="field">
-          <label for="setting-unit">Weight unit</label>
-          <select id="setting-unit" name="unit">
-            <option value="lb">Pounds (lb)</option>
-            <option value="kg">Kilograms (kg)</option>
-          </select>
-        </p>
-        <p class="field">
-          <label for="setting-target">Default daily target</label>
-          <input type="number" id="setting-target" name="default_calorie_target" step="10" min="1" required inputmode="numeric">
-        </p>
-        <p class="field">
-          <label for="setting-goal-weight">Goal weight (<span class="unit-label">lb</span>)</label>
-          <input type="number" id="setting-goal-weight" name="goal_weight" step="0.1" min="0" inputmode="decimal">
-        </p>
-        <p class="field">
-          <label for="setting-goal-date">Target date <span class="field__hint">optional</span></label>
-          <input type="date" id="setting-goal-date" name="goal_date">
-        </p>
-      </div>
-      <fieldset class="weekdays">
-        <legend>Target by weekday <span class="field__hint">blank follows the default</span></legend>
-        <div class="weekdays__grid">
+    <!-- Targets and Profile are both standing settings, so they share one
+         card, a tab each, rather than two cards' worth of page. -->
+    <section class="card settings-card" aria-labelledby="settings-title">
+      <h2 class="card__title" id="settings-title">Settings</h2>
+      <div class="tabs" id="settings-tabs" aria-label="Settings"></div>
+
+      <form class="settings-panel" id="targets-form" novalidate>
+        <div class="field-grid">
           <p class="field">
-            <label for="setting-target-mon">Mon</label>
-            <input type="number" id="setting-target-mon" name="calorie_target_mon" step="10" min="1" inputmode="numeric">
+            <label for="setting-unit">Weight unit</label>
+            <select id="setting-unit" name="unit">
+              <option value="lb">Pounds (lb)</option>
+              <option value="kg">Kilograms (kg)</option>
+            </select>
           </p>
           <p class="field">
-            <label for="setting-target-tue">Tue</label>
-            <input type="number" id="setting-target-tue" name="calorie_target_tue" step="10" min="1" inputmode="numeric">
+            <label for="setting-target">Default daily target</label>
+            <input type="number" id="setting-target" name="default_calorie_target" step="10" min="1" required inputmode="numeric">
           </p>
           <p class="field">
-            <label for="setting-target-wed">Wed</label>
-            <input type="number" id="setting-target-wed" name="calorie_target_wed" step="10" min="1" inputmode="numeric">
+            <label for="setting-goal-weight">Goal weight (<span class="unit-label">lb</span>)</label>
+            <input type="number" id="setting-goal-weight" name="goal_weight" step="0.1" min="0" inputmode="decimal">
           </p>
           <p class="field">
-            <label for="setting-target-thu">Thu</label>
-            <input type="number" id="setting-target-thu" name="calorie_target_thu" step="10" min="1" inputmode="numeric">
-          </p>
-          <p class="field">
-            <label for="setting-target-fri">Fri</label>
-            <input type="number" id="setting-target-fri" name="calorie_target_fri" step="10" min="1" inputmode="numeric">
-          </p>
-          <p class="field">
-            <label for="setting-target-sat">Sat</label>
-            <input type="number" id="setting-target-sat" name="calorie_target_sat" step="10" min="1" inputmode="numeric">
-          </p>
-          <p class="field">
-            <label for="setting-target-sun">Sun</label>
-            <input type="number" id="setting-target-sun" name="calorie_target_sun" step="10" min="1" inputmode="numeric">
+            <label for="setting-goal-date">Target date <span class="field__hint">optional</span></label>
+            <input type="date" id="setting-goal-date" name="goal_date">
           </p>
         </div>
-      </fieldset>
-      <div class="card__actions">
-        <button type="submit" class="btn btn--primary">Save targets</button>
-      </div>
-    </form>
+        <fieldset class="weekdays">
+          <legend>Target by weekday <span class="field__hint">blank follows the default</span></legend>
+          <div class="weekdays__grid">
+            <p class="field">
+              <label for="setting-target-mon">Mon</label>
+              <input type="number" id="setting-target-mon" name="calorie_target_mon" step="10" min="1" inputmode="numeric">
+            </p>
+            <p class="field">
+              <label for="setting-target-tue">Tue</label>
+              <input type="number" id="setting-target-tue" name="calorie_target_tue" step="10" min="1" inputmode="numeric">
+            </p>
+            <p class="field">
+              <label for="setting-target-wed">Wed</label>
+              <input type="number" id="setting-target-wed" name="calorie_target_wed" step="10" min="1" inputmode="numeric">
+            </p>
+            <p class="field">
+              <label for="setting-target-thu">Thu</label>
+              <input type="number" id="setting-target-thu" name="calorie_target_thu" step="10" min="1" inputmode="numeric">
+            </p>
+            <p class="field">
+              <label for="setting-target-fri">Fri</label>
+              <input type="number" id="setting-target-fri" name="calorie_target_fri" step="10" min="1" inputmode="numeric">
+            </p>
+            <p class="field">
+              <label for="setting-target-sat">Sat</label>
+              <input type="number" id="setting-target-sat" name="calorie_target_sat" step="10" min="1" inputmode="numeric">
+            </p>
+            <p class="field">
+              <label for="setting-target-sun">Sun</label>
+              <input type="number" id="setting-target-sun" name="calorie_target_sun" step="10" min="1" inputmode="numeric">
+            </p>
+          </div>
+        </fieldset>
+        <div class="card__actions">
+          <button type="submit" class="btn btn--primary">Save targets</button>
+        </div>
+      </form>
 
-    <!-- The profile behind the maintenance estimate. The running calorie
-         balance measures each day against that estimate once this is filled
-         in, and against the targets above until then. -->
-    <form class="card" id="profile-form" novalidate>
-      <h2 class="card__title">Profile <span class="field__hint">for the maintenance estimate</span></h2>
-      <div class="field-grid">
+      <!-- The profile behind the maintenance estimate. The running calorie
+           balance measures each day against that estimate once this is filled
+           in, and against the targets until then. -->
+      <form class="settings-panel" id="profile-form" novalidate>
+        <p class="field__hint settings-panel__intro">What the maintenance estimate is worked out from.</p>
+        <div class="field-grid">
+          <p class="field">
+            <label for="setting-height">Height (<span class="height-unit-label">in</span>)</label>
+            <input type="number" id="setting-height" name="height" step="0.5" min="0" inputmode="decimal">
+          </p>
+          <p class="field">
+            <label for="setting-birth-date">Date of birth</label>
+            <input type="date" id="setting-birth-date" name="birth_date">
+          </p>
+          <p class="field">
+            <label for="setting-sex">Sex</label>
+            <select id="setting-sex" name="sex">
+              <option value="">Not set</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </p>
+        </div>
         <p class="field">
-          <label for="setting-height">Height (<span class="height-unit-label">in</span>)</label>
-          <input type="number" id="setting-height" name="height" step="0.5" min="0" inputmode="decimal">
+          <label for="setting-activity">Activity, apart from the exercise you log</label>
+          <select id="setting-activity" name="activity_level"></select>
         </p>
-        <p class="field">
-          <label for="setting-birth-date">Date of birth</label>
-          <input type="date" id="setting-birth-date" name="birth_date">
+        <p class="estimate" id="profile-estimate" aria-live="polite"></p>
+        <p class="field__hint profile__note">
+          Maintenance is estimated with Mifflin-St Jeor from your weight, height,
+          age and sex, times the activity level above. Exercise you log is already
+          taken off each day's intake, so pick the level that describes the rest of
+          your day — otherwise a workout is counted twice. It is a population
+          average, not a measurement: if your weight trend disagrees with it over a
+          few weeks, trust the trend.
         </p>
-        <p class="field">
-          <label for="setting-sex">Sex</label>
-          <select id="setting-sex" name="sex">
-            <option value="">Not set</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
-        </p>
-      </div>
-      <p class="field">
-        <label for="setting-activity">Activity, apart from the exercise you log</label>
-        <select id="setting-activity" name="activity_level"></select>
-      </p>
-      <p class="estimate" id="profile-estimate" aria-live="polite"></p>
-      <p class="field__hint profile__note">
-        Maintenance is estimated with Mifflin-St Jeor from your weight, height,
-        age and sex, times the activity level above. Exercise you log is already
-        taken off each day's intake, so pick the level that describes the rest of
-        your day — otherwise a workout is counted twice. It is a population
-        average, not a measurement: if your weight trend disagrees with it over a
-        few weeks, trust the trend.
-      </p>
-      <div class="card__actions">
-        <button type="submit" class="btn btn--primary">Save profile</button>
-      </div>
-    </form>
+        <div class="card__actions">
+          <button type="submit" class="btn btn--primary">Save profile</button>
+        </div>
+      </form>
+    </section>
   </section>
 
 
@@ -275,59 +281,64 @@
 
   <section class="kpis" id="kpis" aria-label="Summary"></section>
 
-  <section class="charts">
-    <figure class="chart-card" id="chart-weight">
-      <figcaption>
-        <h2 class="chart-card__title">Weight</h2>
-        <p class="chart-card__sub"></p>
-      </figcaption>
-      <div class="chart-card__legend"></div>
-      <div class="chart-card__plot"></div>
-      <p class="chart-card__note"></p>
-    </figure>
+  <!-- The three charts and the table are one view with four tabs: on a phone
+       they were four screens of scrolling, and only one is ever being read. -->
+  <div class="views-group">
+    <div class="tabs tabs--views" id="view-tabs" aria-label="Charts and logged days"></div>
+    <div class="views">
+      <figure class="chart-card" id="chart-weight">
+        <figcaption>
+          <h2 class="chart-card__title">Weight</h2>
+          <p class="chart-card__sub"></p>
+        </figcaption>
+        <div class="chart-card__legend"></div>
+        <div class="chart-card__plot"></div>
+        <p class="chart-card__note"></p>
+      </figure>
 
-    <figure class="chart-card" id="chart-calories">
-      <figcaption>
-        <h2 class="chart-card__title">Calories against target</h2>
-        <p class="chart-card__sub"></p>
-      </figcaption>
-      <div class="chart-card__legend"></div>
-      <div class="chart-card__plot"></div>
-      <p class="chart-card__note"></p>
-    </figure>
+      <figure class="chart-card" id="chart-calories">
+        <figcaption>
+          <h2 class="chart-card__title">Calories against target</h2>
+          <p class="chart-card__sub"></p>
+        </figcaption>
+        <div class="chart-card__legend"></div>
+        <div class="chart-card__plot"></div>
+        <p class="chart-card__note"></p>
+      </figure>
 
-    <figure class="chart-card" id="chart-balance">
-      <figcaption>
-        <h2 class="chart-card__title">Running calorie balance</h2>
-        <p class="chart-card__sub"></p>
-      </figcaption>
-      <div class="chart-card__legend"></div>
-      <div class="chart-card__plot"></div>
-      <p class="chart-card__note"></p>
-    </figure>
-  </section>
+      <figure class="chart-card" id="chart-balance">
+        <figcaption>
+          <h2 class="chart-card__title">Running calorie balance</h2>
+          <p class="chart-card__sub"></p>
+        </figcaption>
+        <div class="chart-card__legend"></div>
+        <div class="chart-card__plot"></div>
+        <p class="chart-card__note"></p>
+      </figure>
 
-  <section class="table-card">
-    <h2 class="chart-card__title">Logged days</h2>
-    <p class="chart-card__sub">The same values the charts show. Select a row to load it into the form.</p>
-    <div class="table-scroll">
-      <table class="data-table" id="entries-table">
-        <thead>
-          <tr>
-            <th scope="col">Date</th>
-            <th scope="col" class="num">Weight (<span class="unit-label">lb</span>)</th>
-            <th scope="col" class="num">Eaten</th>
-            <th scope="col" class="num">Burnt</th>
-            <th scope="col" class="num">Target</th>
-            <th scope="col" class="num">Difference</th>
-            <th scope="col">Note</th>
-            <th scope="col"><span class="visually-hidden">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <section class="table-card" id="panel-table">
+        <h2 class="chart-card__title">Logged days</h2>
+        <p class="chart-card__sub">The same values the charts show. Select a row to load it into the form.</p>
+        <div class="table-scroll">
+          <table class="data-table" id="entries-table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col" class="num">Weight (<span class="unit-label">lb</span>)</th>
+                <th scope="col" class="num">Eaten</th>
+                <th scope="col" class="num">Burnt</th>
+                <th scope="col" class="num">Target</th>
+                <th scope="col" class="num">Difference</th>
+                <th scope="col">Note</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
     </div>
-  </section>
+  </div>
 
   <!-- Collapsed by default: the app needs no backup to work, so this stays
        out of the way until it is wanted. It opens itself when something

@@ -36,6 +36,7 @@ import {
 } from './maintenance.js';
 import { WEEKLY_THRESHOLD_DAYS, caloriePoints, inRange, summarize, targetForDate } from './stats.js';
 import { renderTable } from './table.js';
+import { mountTabs } from './tabs.js';
 import { mountChart, token } from './charts/core.js';
 import { drawWeightChart, goalFitsView, renderWeightLegend } from './charts/weight.js';
 import { caloriesSeries, drawCaloriesChart, renderCaloriesLegend } from './charts/calories.js';
@@ -47,8 +48,25 @@ const RANGES = [
   { key: '1y', label: 'the last year', short: '1 year', days: 365 },
   { key: 'all', label: 'all time', short: 'All', days: null },
 ];
+/* The tabbed views below the range filter: three charts and the table, one
+   at a time. `chart` names the entry in `charts` to redraw when the tab is
+   opened, since a panel measures zero wide while it is hidden. */
+const VIEWS = [
+  { key: 'weight', label: 'Weight', panel: '#chart-weight', chart: 'weight' },
+  { key: 'calories', label: 'Calories', panel: '#chart-calories', chart: 'calories' },
+  { key: 'balance', label: 'Balance', panel: '#chart-balance', chart: 'balance' },
+  { key: 'days', label: 'Logged days', panel: '#panel-table', chart: null },
+];
+
+const SETTINGS_TABS = [
+  { key: 'targets', label: 'Targets', panel: '#targets-form' },
+  { key: 'profile', label: 'Profile', panel: '#profile-form' },
+];
+
 const THEME_KEY = 'weight-tracker:theme';
 const RANGE_KEY = 'weight-tracker:range';
+const VIEW_KEY = 'weight-tracker:view';
+const SETTINGS_TAB_KEY = 'weight-tracker:settings-tab';
 
 const $ = (selector) => document.querySelector(selector);
 const state = { settings: null, entries: [], rangeKey: localStorage.getItem(RANGE_KEY) || '90d' };
@@ -66,6 +84,10 @@ const backup = createBackupService({
 });
 let backupPanel = null;
 let foodPanel = null;
+let views = null;
+/* The props each chart would draw from, kept so the one behind a tab can be
+   drawn the moment that tab is opened. */
+let chartProps = {};
 
 const charts = {
   weight: mountChart($('#chart-weight .chart-card__plot'), drawWeightChart),
@@ -116,6 +138,26 @@ function renderRangeFilter() {
       return button;
     })
   );
+}
+
+/* A chart drawn into a hidden panel has no width to measure, so the one
+   being opened is redrawn on the way in. Only the visible chart is kept up to
+   date by render() for the same reason. */
+function mountViewTabs() {
+  views = mountTabs({
+    list: $('#view-tabs'),
+    tabs: VIEWS.map((view) => ({ ...view, panel: $(view.panel) })),
+    storage: localStorage,
+    storageKey: VIEW_KEY,
+    onSelect: (key, { changed }) => {
+      if (changed) refreshVisibleChart();
+    },
+  });
+}
+
+function visibleView() {
+  const key = views ? views.selected() : VIEWS[0].key;
+  return VIEWS.find((view) => view.key === key) || VIEWS[0];
 }
 
 /* --- rendering --------------------------------------------------------- */
@@ -176,8 +218,8 @@ function balanceNote(summary) {
     const side = average > 0 ? 'above' : 'below';
     parts.push(
       `Averaging ${fmtInt(Math.abs(average))} kcal/day ${side} the estimate. Maintenance is an` +
-        ' estimate, so this total is one too — the weight trend above is the measurement to check' +
-        ' it against.'
+        ' estimate, so this total is one too — the trend on the Weight tab is the measurement to' +
+        ' check it against.'
     );
   }
   parts.push(
@@ -217,7 +259,7 @@ function render() {
   $('#chart-weight .chart-card__sub').textContent =
     `Logged readings and their 7-day average over ${range.label}.`;
   $('#chart-weight .chart-card__note').textContent = weightNote(summary, settings, range);
-  charts.weight.refresh({ weights: summary.weights, settings, range });
+  const weightProps = { weights: summary.weights, settings, range };
 
   const daysInRange = summary.daysInRange;
   const series = caloriesSeries(summary.calories, daysInRange);
@@ -228,20 +270,30 @@ function render() {
   $('#chart-calories .chart-card__note').textContent = summary.avgDiff === null
     ? ''
     : `${summary.calories.length} day${summary.calories.length === 1 ? '' : 's'} with calories logged, averaging ${fmtInt(Math.abs(summary.avgDiff))} kcal ${summary.avgDiff > 0 ? 'over' : 'under'} target per day.${exerciseNote(summary)}`;
-  charts.calories.refresh({ points: series.points, weekly: series.weekly, settings, range });
+  const caloriesProps = { points: series.points, weekly: series.weekly, settings, range };
 
   renderBalanceLegend($('#chart-balance .chart-card__legend'), summary.balanceBasis);
   $('#chart-balance .chart-card__sub').textContent = balanceSubtitle(summary, settings);
   $('#chart-balance .chart-card__note').textContent = balanceNote(summary);
-  charts.balance.refresh({
+  const balanceProps = {
     balance: summary.balance,
     deficits: summary.deficits,
     basis: summary.balanceBasis,
     settings,
     range,
-  });
+  };
 
   renderTable($('#entries-table tbody'), summary.scoped, settings, { onEdit: loadEntryIntoForm, onDelete: deleteEntry });
+
+  // Every panel's words are written above whether it is open or not, so a tab
+  // opens on current text; only the plot it holds waits until it is visible.
+  chartProps = { weight: weightProps, calories: caloriesProps, balance: balanceProps };
+  refreshVisibleChart();
+}
+
+function refreshVisibleChart() {
+  const { chart } = visibleView();
+  if (chart && chartProps[chart]) charts[chart].refresh(chartProps[chart]);
 }
 
 /* --- forms ------------------------------------------------------------- */
@@ -640,6 +692,13 @@ async function boot() {
   $('#entry-date').max = todayISO();
   $('#entry-date').value = todayISO();
   fillActivityOptions();
+  mountViewTabs();
+  mountTabs({
+    list: $('#settings-tabs'),
+    tabs: SETTINGS_TABS.map((tab) => ({ ...tab, panel: $(tab.panel) })),
+    storage: localStorage,
+    storageKey: SETTINGS_TAB_KEY,
+  });
   renderRangeFilter();
   wireEvents();
   backupPanel = mountBackupPanel({ service: backup, onDataChanged: dataChanged, setStatus });
